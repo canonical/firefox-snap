@@ -1,0 +1,193 @@
+name: firefox
+version: "89.0-2"
+summary: Mozilla Firefox web browser
+description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
+confinement: strict
+grade: stable
+base: core20
+compression: lzo
+
+apps:
+  firefox:
+    command: firefox
+    command-chain: [tmpdir]
+    desktop: firefox.desktop
+    extensions: [gnome-3-38]
+    environment:
+      HOME: "$SNAP_USER_COMMON"
+      GTK_USE_PORTAL: 1
+    slots:
+      - dbus-daemon
+      - mpris
+    plugs:
+      - avahi-observe
+      - browser-sandbox
+      - camera
+      - cups-control
+      - gsettings
+      - hardware-observe
+      - home
+      - joystick
+      - network
+      - network-observe
+      - opengl
+      - pulseaudio
+      - removable-media
+      - screen-inhibit-control
+      - u2f-devices
+      - unity7
+      - upower-observe
+
+plugs:
+  browser-sandbox:
+    interface: browser-support
+    allow-sandbox: true
+
+parts:
+  rust:
+    plugin: nil
+    build-packages:
+      - wget
+    override-pull: wget -O rustup.sh https://sh.rustup.rs
+    override-build: sh rustup.sh -q -y
+    override-prime: ''
+  cbindgen:
+    plugin: nil
+    after:
+      - rust
+    override-build: $HOME/.cargo/bin/cargo install cbindgen
+    override-prime: ''
+  clang:
+    plugin: nil
+    build-packages:
+      - wget
+    override-pull: |
+      LLVM_RELEASE=12.0.0
+      ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE/clang+llvm-$LLVM_RELEASE-
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        SUFFIX=x86_64-linux-gnu-ubuntu-20.04.tar.xz
+      elif [ $SNAPCRAFT_TARGET_ARCH = "armhf" ]; then
+        SUFFIX=armv7a-linux-gnueabihf.tar.xz
+      elif [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
+        SUFFIX=aarch64-linux-gnu.tar.xz
+      fi
+      wget -O - $ROOT$SUFFIX | tar -x --xz
+    override-build: |
+      cp -R clang+llvm-*/ $SNAPCRAFT_PART_INSTALL/usr/
+    override-prime: ''
+  nodejs:
+    plugin: nil
+    build-packages:
+      - wget
+    override-pull: |
+      NODEJS_RELEASE=v14.17.0
+      ROOT=https://nodejs.org/dist/$NODEJS_RELEASE/node-$NODEJS_RELEASE-linux-
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        SUFFIX=x64.tar.xz
+      elif [ $SNAPCRAFT_TARGET_ARCH = "armhf" ]; then
+        SUFFIX=armv7l.tar.xz
+      elif [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
+        SUFFIX=arm64.tar.xz
+      fi
+      wget -O - $ROOT$SUFFIX | tar -x --xz
+    override-build: |
+      cp -R node-*/ $SNAPCRAFT_PART_INSTALL/usr/
+    override-prime: ''
+  firefox:
+    plugin: nil
+    after:
+      - rust
+      - cbindgen
+      - clang
+      - nodejs
+    build-packages:
+      - nasm
+      - unzip
+      - zip
+    override-pull: |
+      VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
+      BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
+      ROOT=https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD
+      wget -O - $ROOT/source/firefox-$VERSION.source.tar.xz | tar -x --xz --strip-components=1
+      mkdir langpacks
+      LOCALES=$(python3 taskcluster/docker/firefox-snap/extract_locales_from_l10n_json.py browser/locales/l10n-changesets.json)
+      for LOCALE in $LOCALES; do
+        wget -O langpacks/langpack-$LOCALE@firefox.mozilla.org.xpi $ROOT/linux-x86_64/xpi/$LOCALE.xpi
+      done
+    override-build: |
+      export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
+      ./mach create-mach-environment
+      ./mach configure --prefix=$SNAPCRAFT_PART_INSTALL
+      ./mach build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
+      ./mach install
+      mv $SNAPCRAFT_PART_INSTALL/lib/firefox/* $SNAPCRAFT_PART_INSTALL/
+      rm -rf $SNAPCRAFT_PART_INSTALL/lib
+      mkdir -p $SNAPCRAFT_PART_INSTALL/distribution/extensions
+      cp taskcluster/docker/firefox-snap/firefox.desktop $SNAPCRAFT_PART_INSTALL/
+      cp taskcluster/docker/firefox-snap/tmpdir $SNAPCRAFT_PART_INSTALL/
+      cp taskcluster/docker/firefox-snap/policies.json $SNAPCRAFT_PART_INSTALL/distribution/
+      cp langpacks/langpack-*.xpi $SNAPCRAFT_PART_INSTALL/distribution/extensions/
+    stage-packages:
+      - libpci3
+      - libxt6
+    override-prime: |
+      snapcraftctl prime
+      rm -rf bin etc usr/bin usr/include usr/lib/X11 usr/share
+      find usr/lib -type f,l -not -regex '.*/\(libpci.so.*\|libXt.so.*\)' -delete
+  distribution:
+    plugin: nil
+    after:
+      - firefox
+    source: https://github.com/mozilla-partners/canonical.git
+    override-prime: |
+      cp -R $SNAPCRAFT_PART_SRC/desktop/ubuntu/distribution $SNAPCRAFT_PRIME/
+  ffmpeg:
+    plugin: nil
+    after:
+      - firefox
+    # Not using the ffmpeg snap (which might provide a more recent version)
+    # because it is currently built on core18
+    stage-packages:
+      - libavcodec58
+    prime:
+      - usr/lib/*/libaom.so.*
+      - usr/lib/*/libavcodec.so.*
+      - usr/lib/*/libavutil.so.*
+      - usr/lib/*/libcodec2.so.*
+      - usr/lib/*/libdav1d.so.*
+      - usr/lib/*/libffi.so.*
+      - usr/lib/*/libgsm.so.*
+      - usr/lib/*/libicudata.so.*
+      - usr/lib/*/libicuuc.so.*
+      - usr/lib/*/libmd.so.*
+      - usr/lib/*/libmfx.so.*
+      - usr/lib/*/libmp3lame.so.*
+      - usr/lib/*/libnuma.so.*
+      - usr/lib/*/libOpenCL.so.*
+      - usr/lib/*/libopus.so.*
+      - usr/lib/*/libshine.so.*
+      - usr/lib/*/libsnappy.so.*
+      - usr/lib/*/libsoxr.so.*
+      - usr/lib/*/libspeex.so.*
+      - usr/lib/*/libswresample.so.*
+      - usr/lib/*/libtheoradec.so.*
+      - usr/lib/*/libtheoraenc.so.*
+      - usr/lib/*/libtwolame.so.*
+      - usr/lib/*/libva-drm.so.*
+      - usr/lib/*/libva.so.*
+      - usr/lib/*/libva-x11.so.*
+      - usr/lib/*/libvdpau.so.*
+      - usr/lib/*/libvpx.so.*
+      - usr/lib/*/libwavpack.so.*
+      - usr/lib/*/libwebpmux.so.*
+      - usr/lib/*/libwebp.so.*
+      - usr/lib/*/libx264.so.*
+      - usr/lib/*/libx265.so.*
+      - usr/lib/*/libxvidcore.so.*
+      - usr/lib/*/libzvbi.so.*
+
+slots:
+  dbus-daemon:
+    interface: dbus
+    bus: session
+    name: org.mozilla.firefox
