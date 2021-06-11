@@ -101,6 +101,7 @@ parts:
       - clang
       - nodejs
     build-packages:
+      - libgtk2.0-dev
       - m4
       - nasm
       - python3-appdirs
