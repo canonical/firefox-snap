@@ -103,6 +103,7 @@ parts:
     build-packages:
       - libdbus-glib-1-dev
       - libgtk2.0-dev
+      - libx11-xcb-dev
       - libxt-dev
       - m4
       - nasm
