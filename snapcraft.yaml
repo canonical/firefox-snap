@@ -103,8 +103,8 @@ parts:
     build-packages:
       - nasm
       - python3-appdirs
-      - python3-distutils
       - python3-packaging
+      - python3-pip
       - python3-pkg-resources
       - python3-progress
       - python3-retrying
@@ -123,7 +123,7 @@ parts:
       done
     override-build: |
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
-      ./mach create-mach-environment
+      PYTHONPATH= ./mach create-mach-environment
       ./mach configure --prefix=$SNAPCRAFT_PART_INSTALL
       ./mach build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
       ./mach install
