@@ -102,6 +102,7 @@ parts:
       - nodejs
     build-packages:
       - nasm
+      - python3-distutils
       - unzip
       - zip
     override-pull: |
