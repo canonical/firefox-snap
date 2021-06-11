@@ -102,7 +102,13 @@ parts:
       - nodejs
     build-packages:
       - nasm
+      - python3-appdirs
       - python3-distutils
+      - python3-packaging
+      - python3-pkg-resources
+      - python3-progress
+      - python3-retrying
+      - python3-six
       - unzip
       - zip
     override-pull: |
