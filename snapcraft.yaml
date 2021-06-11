@@ -101,6 +101,7 @@ parts:
       - clang
       - nodejs
     build-packages:
+      - m4
       - nasm
       - python3-appdirs
       - python3-packaging
