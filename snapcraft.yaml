@@ -60,6 +60,7 @@ parts:
   clang:
     plugin: nil
     build-packages:
+      - libtinfo5
       - wget
     override-pull: |
       LLVM_RELEASE=12.0.0
