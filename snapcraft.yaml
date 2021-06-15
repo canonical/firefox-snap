@@ -63,7 +63,9 @@ parts:
       - wget
       - on amd64:
         - libtinfo6
-      - on arm64,armhf:
+      - on arm64:
+        - libtinfo5
+      - on armhf:
         - libtinfo5
     override-pull: |
       LLVM_RELEASE=12.0.0
