@@ -163,7 +163,9 @@ parts:
   distribution:
     plugin: nil
     source: https://github.com/mozilla-partners/canonical.git
-    override-prime: cp -R $SNAPCRAFT_PART_SRC/desktop/ubuntu/distribution $SNAPCRAFT_PRIME/usr/lib/firefox/
+    override-prime: |
+      mkdir -p $SNAPCRAFT_PRIME/usr/lib/firefox
+      cp -R $SNAPCRAFT_PART_SRC/desktop/ubuntu/distribution $SNAPCRAFT_PRIME/usr/lib/firefox/
 
   ffmpeg:
     plugin: nil
