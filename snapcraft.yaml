@@ -113,13 +113,6 @@ parts:
       - libxt-dev
       - m4
       - nasm
-      - python3-appdirs
-      - python3-packaging
-      - python3-pip
-      - python3-pkg-resources
-      - python3-progress
-      - python3-retrying
-      - python3-six
       - unzip
       - zip
     override-pull: |
@@ -135,7 +128,8 @@ parts:
     override-build: |
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
       export LD_LIBRARY_PATH=
-      PYTHONPATH= PATH=$PATH:$HOME/.cargo/bin C_INCLUDE_PATH=/snap/gnome-3-38-2004-sdk/current/usr/include/python3.8:/snap/gnome-3-38-2004-sdk/current/usr/include ./mach create-mach-environment
+      export PATH=$HOME/.cargo/bin:$PATH
+      PYTHONPATH= C_INCLUDE_PATH=/snap/gnome-3-38-2004-sdk/current/usr/include/python3.8:/snap/gnome-3-38-2004-sdk/current/usr/include ./mach create-mach-environment
       ./mach configure --prefix=$SNAPCRAFT_PART_INSTALL
       ./mach build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
       ./mach install
