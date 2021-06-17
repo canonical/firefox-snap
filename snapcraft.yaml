@@ -139,7 +139,6 @@ parts:
       done
     override-build: |
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
-      export LD_LIBRARY_PATH=
       export PATH=$HOME/.cargo/bin:$PATH
       PYTHONPATH= C_INCLUDE_PATH=/snap/gnome-3-38-2004-sdk/current/usr/include/python3.8:/snap/gnome-3-38-2004-sdk/current/usr/include ./mach create-mach-environment
       ./mach configure --prefix=$SNAPCRAFT_PART_INSTALL/usr
