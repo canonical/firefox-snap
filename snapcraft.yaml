@@ -148,7 +148,6 @@ parts:
       mkdir -p $DISTRIBUTION/extensions
       cp taskcluster/docker/firefox-snap/firefox.desktop $SNAPCRAFT_PART_INSTALL/
       cp taskcluster/docker/firefox-snap/tmpdir $SNAPCRAFT_PART_INSTALL/
-      cp taskcluster/docker/firefox-snap/policies.json $DISTRIBUTION/
       cp langpacks/langpack-*.xpi $DISTRIBUTION/extensions/
     stage-packages:
       - libpci3
