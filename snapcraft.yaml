@@ -124,6 +124,7 @@ parts:
     build-packages:
       - libdbus-glib-1-dev
       - libgtk2.0-dev
+      - libpython3-dev
       - libx11-xcb-dev
       - libxt-dev
       - m4
@@ -143,10 +144,11 @@ parts:
     override-build: |
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
       export PATH=$HOME/.cargo/bin:$PATH
-      PYTHONPATH= C_INCLUDE_PATH=/snap/gnome-3-38-2004-sdk/current/usr/include/python3.8:/snap/gnome-3-38-2004-sdk/current/usr/include ./mach create-mach-environment
-      ./mach configure --prefix=$SNAPCRAFT_PART_INSTALL/usr
-      ./mach build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
-      ./mach install
+      MACH="env -u LD_LIBRARY_PATH -u PYTHONPATH /usr/bin/python3 ./mach"
+      $MACH create-mach-environment
+      $MACH configure --prefix=$SNAPCRAFT_PART_INSTALL/usr
+      $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
+      $MACH install
       DISTRIBUTION=$SNAPCRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
       cp taskcluster/docker/firefox-snap/firefox.desktop $SNAPCRAFT_PART_INSTALL/
