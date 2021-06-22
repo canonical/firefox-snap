@@ -129,6 +129,7 @@ parts:
       - libxt-dev
       - m4
       - nasm
+      - quilt
       - unzip
       - zip
     override-pull: |
@@ -142,6 +143,7 @@ parts:
         wget -O langpacks/langpack-$LOCALE@firefox.mozilla.org.xpi $ROOT/linux-x86_64/xpi/$LOCALE.xpi
       done
     override-build: |
+      QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
       export PATH=$HOME/.cargo/bin:$PATH
       MACH="env -u LD_LIBRARY_PATH -u PYTHONPATH /usr/bin/python3 ./mach"
