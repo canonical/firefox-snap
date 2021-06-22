@@ -147,7 +147,7 @@ parts:
       MACH="env -u LD_LIBRARY_PATH -u PYTHONPATH /usr/bin/python3 ./mach"
       $MACH create-mach-environment
       $MACH configure --prefix=$SNAPCRAFT_PART_INSTALL/usr
-      $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
+      ./mach build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
       $MACH install
       DISTRIBUTION=$SNAPCRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
