@@ -150,6 +150,9 @@ parts:
     override-build: |
       QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
+      if [ $SNAPCRAFT_TARGET_ARCH != "armhf" ]; then
+        echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
+      fi
       export PATH=$HOME/.cargo/bin:$PATH
       GNOME_SDK_SNAP=/snap/gnome-3-38-2004-sdk/current
       export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
