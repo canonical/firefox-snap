@@ -1,5 +1,6 @@
 Description: disable unaligned FP accesses emulation on armhf, as Ubuntu does
  not have definitions for `struct user_vfp` and `struct user_vfp_exc`.
+Bug: https://bugzilla.mozilla.org/1526653
 Author: Olivier Tilloy <olivier.tilloy@canonical.com>
 
 --- a/js/src/wasm/WasmSignalHandlers.cpp
