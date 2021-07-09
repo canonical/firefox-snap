@@ -151,10 +151,12 @@ parts:
       QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
       export PATH=$HOME/.cargo/bin:$PATH
+      GNOME_SDK_SNAP=/snap/gnome-3-38-2004-sdk/current
+      export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
       MACH="env -u LD_LIBRARY_PATH -u PYTHONPATH /usr/bin/python3 ./mach"
       $MACH create-mach-environment
       $MACH configure --prefix=$SNAPCRAFT_PART_INSTALL/usr
-      ./mach build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
+      $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
       $MACH install
       DISTRIBUTION=$SNAPCRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
