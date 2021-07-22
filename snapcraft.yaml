@@ -124,6 +124,7 @@ parts:
       - cbindgen
       - clang
       - nodejs
+      - apikeys
       - distribution
       - ffmpeg
     build-packages:
@@ -225,6 +226,23 @@ parts:
       - usr/lib/*/libx265.so.*
       - usr/lib/*/libxvidcore.so.*
       - usr/lib/*/libzvbi.so.*
+
+  apikeys:
+    plugin: nil
+    build-packages:
+      - coreutils
+      - gpg
+      - jq
+    override-build: |
+      export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
+      gpg -d --batch --passphrase "$(base64 -d $SNAPCRAFT_PROJECT_DIR/.passphrase)" -o apikeys $SNAPCRAFT_PROJECT_DIR/.apikeys
+      cat apikeys | jq .MOZ_GOOGLE_LOCATION_SERVICE_API_KEY | tr -d '"' > $SNAPCRAFT_PART_INSTALL/gls-gapi.data
+      echo "ac_add_options --with-google-location-service-api-keyfile=$SNAPCRAFT_STAGE/gls-gapi.data" >> $MOZCONFIG
+      cat apikeys | jq .MOZ_GOOGLE_SAFEBROWSING_API_KEY | tr -d '"' > $SNAPCRAFT_PART_INSTALL/sb-gapi.data
+      echo "ac_add_options --with-google-safebrowsing-api-keyfile=$SNAPCRAFT_STAGE/sb-gapi.data" >> $MOZCONFIG
+      cat apikeys | jq .MOZ_MOZILLA_API_KEY | tr -d '"' > $SNAPCRAFT_PART_INSTALL/mozilla-desktop-geoloc-api.key
+      echo "ac_add_options --with-mozilla-api-keyfile=$SNAPCRAFT_STAGE/mozilla-desktop-geoloc-api.key" >> $MOZCONFIG
+    override-prime: ''
 
 slots:
   dbus-daemon:
