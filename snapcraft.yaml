@@ -57,7 +57,8 @@ parts:
     build-packages:
       - wget
     override-pull: wget -O rustup.sh https://sh.rustup.rs
-    override-build: sh rustup.sh -q -y
+    # Pin rust version to 1.53.0 because firefox fails to build with 1.54.0 (https://bugzilla.mozilla.org/1719674)
+    override-build: sh rustup.sh -q -y --default-toolchain 1.53.0
     override-prime: ''
 
   cbindgen:
