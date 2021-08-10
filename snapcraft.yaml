@@ -149,7 +149,6 @@ parts:
         wget -O langpacks/langpack-$LOCALE@firefox.mozilla.org.xpi $ROOT/linux-x86_64/xpi/$LOCALE.xpi
       done
     override-build: |
-      QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
       if [ $SNAPCRAFT_TARGET_ARCH != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
