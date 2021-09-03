@@ -87,9 +87,10 @@ parts:
       elif [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
         SUFFIX=aarch64-linux-gnu.tar.xz
       fi
-      wget -O - $ROOT$SUFFIX | tar -x --xz
+      wget -O - $ROOT$SUFFIX | tar -x --xz --strip-components=1
     override-build: |
-      cp -R clang+llvm-*/ $SNAPCRAFT_PART_INSTALL/usr/
+      mkdir -p $SNAPCRAFT_STAGE/usr
+      cp -R * $SNAPCRAFT_STAGE/usr/
     override-prime: ''
 
   wasi-sdk:
