@@ -108,8 +108,7 @@ parts:
     override-build: |
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         tar -C $SNAPCRAFT_STAGE -xf wasi-sysroot-*.tar.gz
-        cd $SNAPCRAFT_STAGE/usr/lib/clang/*
-        tar -xf libclang_rt.builtins-wasm32-wasi-*.tar.gz
+        tar -C $SNAPCRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-*.tar.gz
         patch -d $SNAPCRAFT_STAGE/wasi-sysroot/include/c++/v1 -p3 < libcxx-stdcpp-threads.patch
       fi
     override-prime: ''
