@@ -133,6 +133,22 @@ parts:
       cp -R node-*/ $SNAPCRAFT_PART_INSTALL/usr/
     override-prime: ''
 
+  yq:
+    plugin: nil
+    build-packages:
+      - wget
+    override-pull: |
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        YQ_ROOT=https://github.com/mikefarah/yq/releases/download
+        YQ_VERSION=v4.12.1
+        wget -O - $YQ_ROOT/$YQ_VERSION/yq_linux_amd64.tar.gz | tar -x --gzip
+      fi
+    override-build: |
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        cp yq_linux_amd64 $SNAPCRAFT_STAGE/usr/bin/yq
+      fi
+    override-prime: ''
+
   # Launchpad builders have a timeout for how long they are allowed to access
   # the internet (through a proxy) starting from the start of the build.
   # Since the firefox part takes a long time to build, we need to ensure
@@ -150,6 +166,7 @@ parts:
       - apikeys
       - distribution
       - ffmpeg
+      - yq
     build-packages:
       - cmake
       - git
@@ -164,8 +181,6 @@ parts:
       - quilt
       - unzip
       - zip
-    build-snaps:
-      - yq
     override-pull: |
       VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
       BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
