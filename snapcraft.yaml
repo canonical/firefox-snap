@@ -87,9 +87,31 @@ parts:
       elif [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
         SUFFIX=aarch64-linux-gnu.tar.xz
       fi
-      wget -O - $ROOT$SUFFIX | tar -x --xz
+      wget -O - $ROOT$SUFFIX | tar -x --xz --strip-components=1
     override-build: |
-      cp -R clang+llvm-*/ $SNAPCRAFT_PART_INSTALL/usr/
+      mkdir -p $SNAPCRAFT_STAGE/usr
+      cp -R * $SNAPCRAFT_STAGE/usr/
+    override-prime: ''
+
+  wasi-sdk:
+    plugin: nil
+    build-packages:
+      - patch
+      - wget
+    override-pull: |
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        WASI_RELEASE=12.0
+        ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-12
+        wget $ROOT/wasi-sysroot-$WASI_RELEASE.tar.gz
+        wget $ROOT/libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
+        wget -O libcxx-stdcpp-threads.patch https://github.com/llvm/llvm-project/commit/871f96eed3797061c8b1c82fb77d077d110a2da7.patch
+      fi
+    override-build: |
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        tar -C $SNAPCRAFT_STAGE -xf wasi-sysroot-*.tar.gz
+        tar -C $SNAPCRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-*.tar.gz
+        patch -d $SNAPCRAFT_STAGE/wasi-sysroot/include/c++/v1 -p3 < libcxx-stdcpp-threads.patch
+      fi
     override-prime: ''
 
   nodejs:
@@ -111,6 +133,22 @@ parts:
       cp -R node-*/ $SNAPCRAFT_PART_INSTALL/usr/
     override-prime: ''
 
+  yq:
+    plugin: nil
+    build-packages:
+      - wget
+    override-pull: |
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        YQ_ROOT=https://github.com/mikefarah/yq/releases/download
+        YQ_VERSION=v4.12.1
+        wget -O - $YQ_ROOT/$YQ_VERSION/yq_linux_amd64.tar.gz | tar -x --gzip
+      fi
+    override-build: |
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        cp yq_linux_amd64 $SNAPCRAFT_STAGE/usr/bin/yq
+      fi
+    override-prime: ''
+
   # Launchpad builders have a timeout for how long they are allowed to access
   # the internet (through a proxy) starting from the start of the build.
   # Since the firefox part takes a long time to build, we need to ensure
@@ -122,18 +160,23 @@ parts:
     after:
       - rust
       - cbindgen
+      - wasi-sdk
       - clang
       - nodejs
       - apikeys
       - distribution
       - ffmpeg
+      - yq
     build-packages:
+      - cmake
+      - git
       - libdbus-glib-1-dev
       - libgtk2.0-dev
       - libpython3-dev
       - libx11-xcb-dev
       - libxt-dev
       - m4
+      - make
       - nasm
       - quilt
       - unzip
@@ -148,15 +191,37 @@ parts:
       for LOCALE in $LOCALES; do
         wget -O langpacks/langpack-$LOCALE@firefox.mozilla.org.xpi $ROOT/linux-x86_64/xpi/$LOCALE.xpi
       done
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        # Unfortunately, mach's command to download toolchain artifacts
+        # (e.g. "./mach artifact toolchain --from-build linux64-lucetc")
+        # requires being run from a VCS checkout, and this isn't one, so
+        # some explicit YAML parsing is needed.
+        TOOLCHAINS_YAML=taskcluster/ci/fetch/toolchains.yml
+        LUCETC_FETCH=.lucetc-source.fetch
+        YQ="env -u LD_LIBRARY_PATH yq eval"
+        LUCETC_REPO=$($YQ $LUCETC_FETCH.repo $TOOLCHAINS_YAML)
+        LUCETC_REV=$($YQ $LUCETC_FETCH.revision $TOOLCHAINS_YAML)
+        git clone $LUCETC_REPO lucetc
+        git -C lucetc checkout $LUCETC_REV
+        git -C lucetc submodule update --init --recursive
+      fi
     override-build: |
+      export PATH=$HOME/.cargo/bin:$PATH
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        CC=$SNAPCRAFT_STAGE/usr/bin/clang make -C lucetc build
+        export LUCETC=$SNAPCRAFT_PART_BUILD/lucetc/target/release/lucetc
+      fi
       QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
       if [ $SNAPCRAFT_TARGET_ARCH != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
       fi
-      export PATH=$HOME/.cargo/bin:$PATH
       GNOME_SDK_SNAP=/snap/gnome-3-38-2004-sdk/current
       export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        export WASI_SYSROOT=$SNAPCRAFT_STAGE/wasi-sysroot
+        export WASM_SANDBOXED_LIBRARIES=graphite,ogg,hunspell
+      fi
       MACH="env -u LD_LIBRARY_PATH -u PYTHONPATH /usr/bin/python3 ./mach"
       $MACH create-mach-environment
       $MACH configure --prefix=$SNAPCRAFT_PART_INSTALL/usr
@@ -199,10 +264,7 @@ parts:
       - usr/lib/*/libavutil.so.*
       - usr/lib/*/libcodec2.so.*
       - usr/lib/*/libdav1d.so.*
-      - usr/lib/*/libffi.so.*
       - usr/lib/*/libgsm.so.*
-      - usr/lib/*/libicudata.so.*
-      - usr/lib/*/libicuuc.so.*
       - usr/lib/*/libmd.so.*
       - usr/lib/*/libmfx.so.*
       - usr/lib/*/libmp3lame.so.*
