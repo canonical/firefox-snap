@@ -178,7 +178,6 @@ parts:
       - m4
       - make
       - nasm
-      - quilt
       - unzip
       - zip
     override-pull: |
@@ -211,7 +210,6 @@ parts:
         CC=$SNAPCRAFT_STAGE/usr/bin/clang make -C lucetc build
         export LUCETC=$SNAPCRAFT_PART_BUILD/lucetc/target/release/lucetc
       fi
-      QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
       if [ $SNAPCRAFT_TARGET_ARCH != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
