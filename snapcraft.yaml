@@ -190,6 +190,7 @@ parts:
         export WASI_SYSROOT=$SNAPCRAFT_STAGE/wasi-sysroot
         export WASM_SANDBOXED_LIBRARIES=graphite,ogg,hunspell
       fi
+      export MOZBUILD_STATE_PATH=$SNAPCRAFT_PART_BUILD/.mozbuild
       MACH="env -u LD_LIBRARY_PATH -u PYTHONPATH /usr/bin/python3 ./mach"
       $MACH create-mach-environment
       $MACH configure --prefix=$SNAPCRAFT_PART_INSTALL/usr
