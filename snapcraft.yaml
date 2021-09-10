@@ -20,6 +20,8 @@ apps:
       - dbus-daemon
       - mpris
     plugs:
+      - audio-playback
+      - audio-record
       - avahi-observe
       - browser-sandbox
       - camera
@@ -31,7 +33,6 @@ apps:
       - network
       - network-observe
       - opengl
-      - pulseaudio
       - removable-media
       - screen-inhibit-control
       - system-packages-doc
