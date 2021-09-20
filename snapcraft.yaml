@@ -9,7 +9,7 @@ compression: lzo
 
 apps:
   firefox:
-    command: usr/lib/firefox/firefox
+    command: firefox.launcher
     command-chain: [tmpdir]
     desktop: firefox.desktop
     extensions: [gnome-3-38]
@@ -44,6 +44,9 @@ plugs:
   browser-sandbox:
     interface: browser-support
     allow-sandbox: true
+  dot-mozilla-firefox:
+    interface: personal-files
+    read: [$HOME/.mozilla/firefox]
   etc-firefox-policies:
     interface: system-files
     read: [/etc/firefox/policies]
@@ -211,6 +214,12 @@ parts:
       - usr/lib/firefox
       - usr/lib/*/libpci.so.*
       - usr/lib/*/libXt.so.*
+
+  launcher:
+    plugin: nil
+    override-prime: |
+      cp "$SNAPCRAFT_PROJECT_DIR/firefox.launcher" "$SNAPCRAFT_PRIME/"
+      cp "$SNAPCRAFT_PROJECT_DIR/patch-default-profile.py" "$SNAPCRAFT_PRIME/"
 
   distribution:
     plugin: nil
