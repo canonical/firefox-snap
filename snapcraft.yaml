@@ -205,6 +205,7 @@ parts:
       cp taskcluster/docker/firefox-snap/tmpdir $SNAPCRAFT_PART_INSTALL/
       cp langpacks/langpack-*.xpi $DISTRIBUTION/extensions/
     stage-packages:
+      - libcurl4
       - libpci3
       - libxt6
     prime:
@@ -212,7 +213,26 @@ parts:
       - firefox.desktop
       - tmpdir
       - usr/lib/firefox
+      - usr/lib/*/libasn1.so.*
+      - usr/lib/*/libcurl.so.*
+      - usr/lib/*/libgssapi.so.*
+      - usr/lib/*/libhcrypto.so.*
+      - usr/lib/*/libheimbase.so.*
+      - usr/lib/*/libheimntlm.so.*
+      - usr/lib/*/libhogweed.so.*
+      - usr/lib/*/libhx509.so.*
+      - usr/lib/*/libkrb5.so.*
+      - usr/lib/*/liblber-2.4.so.*
+      - usr/lib/*/libldap_r-2.4.so.*
+      - usr/lib/*/libnettle.so.*
+      - usr/lib/*/libnghttp2.so.*
       - usr/lib/*/libpci.so.*
+      - usr/lib/*/libroken.so.*
+      - usr/lib/*/librtmp.so.*
+      - usr/lib/*/libsasl2.so.*
+      - usr/lib/*/libssh.so.*
+      - usr/lib/*/libssl.so.*
+      - usr/lib/*/libwind.so.*
       - usr/lib/*/libXt.so.*
 
   launcher:
