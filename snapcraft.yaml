@@ -10,7 +10,6 @@ compression: lzo
 apps:
   firefox:
     command: firefox.launcher
-    command-chain: [tmpdir]
     desktop: firefox.desktop
     extensions: [gnome-3-38]
     environment:
@@ -206,7 +205,6 @@ parts:
       cp taskcluster/docker/firefox-snap/firefox.desktop $SNAPCRAFT_PART_INSTALL/
       cp browser/branding/official/default256.png $SNAPCRAFT_PART_INSTALL/
       sed -i 's/\(^Icon=\).*$/\1\/default256.png/' $SNAPCRAFT_PART_INSTALL/firefox.desktop
-      cp taskcluster/docker/firefox-snap/tmpdir $SNAPCRAFT_PART_INSTALL/
       cp langpacks/langpack-*.xpi $DISTRIBUTION/extensions/
     stage-packages:
       - libcurl4
@@ -215,7 +213,6 @@ parts:
     prime:
       - default256.png
       - firefox.desktop
-      - tmpdir
       - usr/lib/firefox
       - usr/lib/*/libasn1.so.*
       - usr/lib/*/libcurl.so.*
