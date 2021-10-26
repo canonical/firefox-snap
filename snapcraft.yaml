@@ -14,8 +14,11 @@ apps:
     desktop: firefox.desktop
     extensions: [gnome-3-38]
     environment:
-      HOME: "$SNAP_USER_COMMON"
       GTK_USE_PORTAL: 1
+      HOME: "$SNAP_USER_COMMON"
+      PIPEWIRE_CONFIG_NAME: "$SNAP/usr/share/pipewire/pipewire.conf"
+      PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/pipewire-0.3"
+      SPA_PLUGIN_DIR: "$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/spa-0.2"
     slots:
       - dbus-daemon
       - mpris
@@ -171,6 +174,7 @@ parts:
       - distribution
       - ffmpeg
       - yq
+      - pipewire
     build-packages:
       - cmake
       - git
@@ -319,6 +323,28 @@ parts:
       - usr/lib/*/libx265.so.*
       - usr/lib/*/libxvidcore.so.*
       - usr/lib/*/libzvbi.so.*
+
+  pipewire:
+    source: https://gitlab.freedesktop.org/pipewire/pipewire/-/archive/0.3.32/pipewire-0.3.32.tar.gz
+    plugin: meson
+    meson-parameters:
+      - --prefix=/usr
+      - --buildtype=release
+      - --strip
+      - -Dalsa=disabled
+      - -Dpipewire-alsa=disabled
+      - -Djack=disabled
+      - -Dpipewire-jack=disabled
+      - -Dsession-managers=[]
+    build-packages:
+      - pkg-config
+      - libdbus-1-dev
+      - libpulse-dev
+    prime:
+      - usr/lib/*/pipewire-*
+      - usr/lib/*/spa-*
+      - usr/lib/*/libpipewire*.so*
+      - usr/share/pipewire
 
   apikeys:
     plugin: nil
