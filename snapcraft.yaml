@@ -63,7 +63,8 @@ parts:
     build-packages:
       - wget
     override-pull: wget -O rustup.sh https://sh.rustup.rs
-    override-build: sh rustup.sh -q -y
+    # Pin rust version to 1.55.0 because when built with 1.56.0, audio capture doesn't work (https://bugzilla.mozilla.org/1732815)
+    override-build: sh rustup.sh -q -y --default-toolchain 1.55.0
     override-prime: ''
 
   cbindgen:
