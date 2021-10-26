@@ -333,10 +333,6 @@ parts:
       - -Djack=disabled
       - -Dpipewire-jack=disabled
       - -Dsession-managers=[]
-    build-packages:
-      - pkg-config
-      - libdbus-1-dev
-      - libpulse-dev
     prime:
       - usr/lib/*/pipewire-*
       - usr/lib/*/spa-*
