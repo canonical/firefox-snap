@@ -194,6 +194,8 @@ parts:
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         export WASI_SYSROOT=$SNAPCRAFT_STAGE/wasi-sysroot
         export WASM_SANDBOXED_LIBRARIES=graphite,ogg,hunspell
+      else
+        echo "ac_add_options --without-wasm-sandboxed-libraries" >> $MOZCONFIG
       fi
       export MOZBUILD_STATE_PATH=$SNAPCRAFT_PART_BUILD/.mozbuild
       MACH="env -u LD_LIBRARY_PATH -u PYTHONPATH /usr/bin/python3 ./mach"
