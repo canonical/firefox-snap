@@ -1,6 +1,7 @@
 Description: partially revert https://hg.mozilla.org/mozilla-central/rev/5b3ea42ac6bc
  to enable building with a released version of the WASI SDK (version 12 doesn't have
  wasi-emulated-process-clocks, https://github.com/WebAssembly/wasi-libc/commit/b9b64a6)
+Bug: https://bugzilla.mozilla.org/show_bug.cgi?id=1739128
 Author: Olivier Tilloy <olivier.tilloy@canonical.com>
 
 --- a/config/rules.mk
