@@ -123,7 +123,7 @@ parts:
     build-packages:
       - wget
     override-pull: |
-      NODEJS_RELEASE=v16.12.0
+      NODEJS_RELEASE=v16.13.0
       ROOT=https://nodejs.org/dist/$NODEJS_RELEASE/node-$NODEJS_RELEASE-linux-
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         SUFFIX=x64.tar.xz
