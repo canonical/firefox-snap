@@ -1,5 +1,5 @@
 name: firefox
-version: "95.0b12-1"
+version: "96.0b2-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -58,48 +58,6 @@ layout:
     bind: $SNAP/gnome-platform/usr/share/libdrm
 
 parts:
-  rust:
-    plugin: nil
-    build-packages:
-      - wget
-    override-pull: wget -O rustup.sh https://sh.rustup.rs
-    # Pin rust version to 1.55.0 because when built with 1.56.0, audio capture doesn't work (https://bugzilla.mozilla.org/1732815)
-    override-build: sh rustup.sh -q -y --default-toolchain 1.55.0
-    override-prime: ''
-
-  cbindgen:
-    plugin: nil
-    after:
-      - rust
-    override-build: $HOME/.cargo/bin/cargo install cbindgen
-    override-prime: ''
-
-  clang:
-    plugin: nil
-    build-packages:
-      - wget
-      - on amd64:
-        - libtinfo6
-      - on arm64:
-        - libtinfo5
-      - on armhf:
-        - libtinfo5
-    override-pull: |
-      LLVM_RELEASE=13.0.0
-      ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE/clang+llvm-$LLVM_RELEASE-
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        SUFFIX=x86_64-linux-gnu-ubuntu-20.04.tar.xz
-      elif [ $SNAPCRAFT_TARGET_ARCH = "armhf" ]; then
-        SUFFIX=armv7a-linux-gnueabihf.tar.xz
-      elif [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
-        SUFFIX=aarch64-linux-gnu.tar.xz
-      fi
-      wget -O - $ROOT$SUFFIX | tar -x --xz --strip-components=1
-    override-build: |
-      mkdir -p $SNAPCRAFT_STAGE/usr
-      cp -R * $SNAPCRAFT_STAGE/usr/
-    override-prime: ''
-
   wasi-sdk:
     plugin: nil
     build-packages:
@@ -109,32 +67,11 @@ parts:
         WASI_RELEASE=14.0
         ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-14
         wget $ROOT/wasi-sysroot-$WASI_RELEASE.tar.gz
-        wget $ROOT/libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
       fi
     override-build: |
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         tar -C $SNAPCRAFT_STAGE -xf wasi-sysroot-*.tar.gz
-        tar -C $SNAPCRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-*.tar.gz
       fi
-    override-prime: ''
-
-  nodejs:
-    plugin: nil
-    build-packages:
-      - wget
-    override-pull: |
-      NODEJS_RELEASE=v16.13.0
-      ROOT=https://nodejs.org/dist/$NODEJS_RELEASE/node-$NODEJS_RELEASE-linux-
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        SUFFIX=x64.tar.xz
-      elif [ $SNAPCRAFT_TARGET_ARCH = "armhf" ]; then
-        SUFFIX=armv7l.tar.xz
-      elif [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
-        SUFFIX=arm64.tar.xz
-      fi
-      wget -O - $ROOT$SUFFIX | tar -x --xz
-    override-build: |
-      cp -R node-*/ $SNAPCRAFT_PART_INSTALL/usr/
     override-prime: ''
 
   # Launchpad builders have a timeout for how long they are allowed to access
@@ -146,17 +83,15 @@ parts:
   firefox:
     plugin: nil
     after:
-      - rust
-      - cbindgen
       - wasi-sdk
-      - clang
-      - nodejs
       - apikeys
       - distribution
+      - firefox-langpacks
       - ffmpeg
       - pipewire
     build-packages:
       - cmake
+      - coreutils
       - git
       - libdbus-glib-1-dev
       - libgtk2.0-dev
@@ -165,20 +100,20 @@ parts:
       - libxt-dev
       - m4
       - make
-      - nasm
+      - mercurial
       - quilt
       - unzip
+      - uuid
       - zip
     override-pull: |
       VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
       BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
-      ROOT=https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD
-      wget -O - $ROOT/source/firefox-$VERSION.source.tar.xz | tar -x --xz --strip-components=1
-      mkdir langpacks
-      LOCALES=$(python3 taskcluster/docker/firefox-snap/extract_locales_from_l10n_json.py browser/locales/l10n-changesets.json)
-      for LOCALE in $LOCALES; do
-        wget -O langpacks/langpack-$LOCALE@firefox.mozilla.org.xpi $ROOT/linux-x86_64/xpi/$LOCALE.xpi
-      done
+      REPO=mozilla-release
+      if [ "${VERSION#*b}" != "$VERSION" ]; then
+        REPO=mozilla-beta
+      fi
+      TAG=FIREFOX_$(echo $VERSION | tr . _)_BUILD$BUILD
+      hg clone https://hg.mozilla.org/releases/$REPO -u $TAG .
     override-build: |
       export PATH=$HOME/.cargo/bin:$PATH
       QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
@@ -196,7 +131,7 @@ parts:
       fi
       export MOZBUILD_STATE_PATH=$SNAPCRAFT_PART_BUILD/.mozbuild
       MACH="env -u LD_LIBRARY_PATH -u PYTHONPATH /usr/bin/python3 ./mach"
-      $MACH create-mach-environment
+      $MACH --no-interactive bootstrap --application-choice browser
       $MACH configure --prefix=$SNAPCRAFT_PART_INSTALL/usr
       $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
       $MACH install
@@ -205,7 +140,6 @@ parts:
       cp taskcluster/docker/firefox-snap/firefox.desktop $SNAPCRAFT_PART_INSTALL/
       cp browser/branding/official/default256.png $SNAPCRAFT_PART_INSTALL/
       sed -i 's/\(^Icon=\).*$/\1\/default256.png/' $SNAPCRAFT_PART_INSTALL/firefox.desktop
-      cp langpacks/langpack-*.xpi $DISTRIBUTION/extensions/
     stage-packages:
       - libcurl4
       - libpci3
@@ -235,6 +169,29 @@ parts:
       - usr/lib/*/libssl.so.*
       - usr/lib/*/libwind.so.*
       - usr/lib/*/libXt.so.*
+
+  firefox-langpacks:
+    plugin: nil
+    build-packages:
+      - coreutils
+      - sed
+      - wget
+    override-pull: |
+      VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
+      BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
+      SERVER=https://ftp.mozilla.org
+      ROOT=$SERVER/pub/firefox/candidates/$VERSION-candidates/build$BUILD
+      XPIS=$(wget -O - $ROOT/linux-x86_64/xpi/ | sed -n 's/.* href="\(.*\.xpi\)".*/\1/p')
+      for XPI in $XPIS; do
+        wget $SERVER$XPI
+      done
+    override-prime: |
+      INSTALLDIR=$SNAPCRAFT_PRIME/usr/lib/firefox/distribution/extensions
+      mkdir -p $INSTALLDIR
+      for XPI in $(ls $SNAPCRAFT_PART_SRC/*.xpi); do
+        LANGCODE=$(basename $XPI .xpi)
+        cp $XPI $INSTALLDIR/langpack-$LANGCODE@firefox.mozilla.org.xpi
+      done
 
   launcher:
     plugin: nil
