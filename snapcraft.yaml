@@ -147,16 +147,16 @@ parts:
   firefox:
     plugin: nil
     after:
-      - rust
+      - apikeys
       - cbindgen
       - clang
-      - nodejs
-      - wasi-sdk
-      - apikeys
       - distribution
-      - firefox-langpacks
       - ffmpeg
+      - firefox-langpacks
+      - nodejs
       - pipewire
+      - rust
+      - wasi-sdk
     build-packages:
       - cmake
       - coreutils
