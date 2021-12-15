@@ -1,0 +1,41 @@
+name: Beta snap build
+
+on:
+  # Run whenever a new revision is pushed to the beta branch.
+  push:
+    branches:
+      - beta
+  # Allow running manually, for testing purposes.
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  beta-snap:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: beta
+      - name: Extract current version
+        id: extract-current-version
+        run: ./.github/scripts/extract-current-version.sh
+      - name: Install wget
+        run: sudo apt update && sudo apt install wget
+      - name: check whether the source tarball and XPIs are available
+        run: |
+          version=${{ steps.extract-current-version.outputs.version }}
+          build=$(echo $version | cut -d- -f2)
+          version=$(echo $version | cut -d- -f1)
+          checksums=https://ftp.mozilla.org/pub/firefox/candidates/$version-candidates/build$build/SHA512SUMS
+          until wget -S --spider $checksums; do sleep 3m; done
+        timeout-minutes: 180
+      - uses: snapcore/action-build@v1
+        id: build-new-snap-beta
+      - uses: snapcore/action-publish@v1
+        with:
+          store_login: ${{ secrets.SNAPSTORE_LOGIN }}
+          snap: ${{ steps.build-new-snap-beta.outputs.snap }}
+          release: edge
