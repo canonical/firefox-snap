@@ -1,5 +1,5 @@
 name: firefox
-version: "96.0b4-1"
+version: "97.0a1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -168,16 +168,18 @@ parts:
       - libxt-dev
       - m4
       - make
+      - mercurial
       - nasm
       - quilt
+      - sed
       - unzip
       - wget
       - zip
     override-pull: |
-      VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
-      BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
-      ROOT=https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD
-      wget -O - $ROOT/source/firefox-$VERSION.source.tar.xz | tar -x --xz --strip-components=1
+      REPO=https://hg.mozilla.org/mozilla-central
+      ROOT=https://ftp.mozilla.org/pub/firefox/nightly/latest-mozilla-central
+      REVISION=$(wget -O - $ROOT/firefox-$SNAPCRAFT_PROJECT_VERSION.en-US.linux-x86_64.txt | tail -1 | sed -n "s#^$REPO/rev/\(.*\)\$#\1#p")
+      hg clone $REPO -u $REVISION .
     override-build: |
       export PATH=$HOME/.cargo/bin:$PATH
       QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
@@ -201,7 +203,7 @@ parts:
       DISTRIBUTION=$SNAPCRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
       cp taskcluster/docker/firefox-snap/firefox.desktop $SNAPCRAFT_PART_INSTALL/
-      cp browser/branding/official/default256.png $SNAPCRAFT_PART_INSTALL/
+      cp browser/branding/nightly/default256.png $SNAPCRAFT_PART_INSTALL/
       sed -i 's/\(^Icon=\).*$/\1\/default256.png/' $SNAPCRAFT_PART_INSTALL/firefox.desktop
     stage-packages:
       - libcurl4
@@ -236,15 +238,12 @@ parts:
   firefox-langpacks:
     plugin: nil
     build-packages:
-      - coreutils
       - sed
       - wget
     override-pull: |
-      VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
-      BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
       SERVER=https://ftp.mozilla.org
-      ROOT=$SERVER/pub/firefox/candidates/$VERSION-candidates/build$BUILD
-      XPIS=$(wget -O - $ROOT/linux-x86_64/xpi/ | sed -n 's/.* href="\(.*\.xpi\)".*/\1/p')
+      ROOT=$SERVER/pub/firefox/nightly/latest-mozilla-central-l10n/linux-x86_64/xpi/
+      XPIS=$(wget -O - $ROOT | sed -n "s/.* href=\"\(.*$SNAPCRAFT_PROJECT_VERSION.*\.xpi\)\".*/\1/p")
       for XPI in $XPIS; do
         wget $SERVER$XPI
       done
@@ -252,7 +251,7 @@ parts:
       INSTALLDIR=$SNAPCRAFT_PRIME/usr/lib/firefox/distribution/extensions
       mkdir -p $INSTALLDIR
       for XPI in $(ls $SNAPCRAFT_PART_SRC/*.xpi); do
-        LANGCODE=$(basename $XPI .xpi)
+        LANGCODE=$(basename $XPI .langpack.xpi | sed -r 's/.*\.(.*)/\1/')
         cp $XPI $INSTALLDIR/langpack-$LANGCODE@firefox.mozilla.org.xpi
       done
 
