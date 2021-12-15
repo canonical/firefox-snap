@@ -1,0 +1,27 @@
+name: Nightly snap build
+
+on:
+  schedule:
+    # Run every 12 hours (Nightly builds start at 10:00 and 22:00 UTC,
+    # and usually builds are available one hour or two later). Give some room
+    # and assume new builds will be available 3 hours after they start.
+    - cron: '0 1,13 * * *'
+  # Allow running manually, for testing purposes.
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}
+
+jobs:
+  nightly-snap:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: nightly
+      - uses: snapcore/action-build@v1
+        id: build-new-snap-nightly
+      - uses: snapcore/action-publish@v1
+        with:
+          store_login: ${{ secrets.SNAPSTORE_LOGIN }}
+          snap: ${{ steps.build-new-snap-nightly.outputs.snap }}
+          release: edge
