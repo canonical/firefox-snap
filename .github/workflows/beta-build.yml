@@ -38,4 +38,4 @@ jobs:
         with:
           store_login: ${{ secrets.SNAPSTORE_LOGIN }}
           snap: ${{ steps.build-new-snap-beta.outputs.snap }}
-          release: edge
+          release: beta
