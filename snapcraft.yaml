@@ -1,5 +1,5 @@
 name: firefox
-version: "95.0.2-1"
+version: "96.0-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -63,8 +63,7 @@ parts:
     build-packages:
       - wget
     override-pull: wget -O rustup.sh https://sh.rustup.rs
-    # Pin rust version to 1.55.0 because when built with 1.56.0, audio capture doesn't work (https://bugzilla.mozilla.org/1732815)
-    override-build: sh rustup.sh -q -y --default-toolchain 1.55.0
+    override-build: sh rustup.sh -q -y --default-toolchain 1.57.0
     override-prime: ''
 
   cbindgen:
@@ -102,6 +101,8 @@ parts:
 
   wasi-sdk:
     plugin: nil
+    after:
+      - clang
     build-packages:
       - wget
     override-pull: |
@@ -146,17 +147,19 @@ parts:
   firefox:
     plugin: nil
     after:
-      - rust
-      - cbindgen
-      - wasi-sdk
-      - clang
-      - nodejs
       - apikeys
+      - cbindgen
+      - clang
       - distribution
       - ffmpeg
+      - firefox-langpacks
+      - nodejs
       - pipewire
+      - rust
+      - wasi-sdk
     build-packages:
       - cmake
+      - coreutils
       - git
       - libdbus-glib-1-dev
       - libgtk2.0-dev
@@ -168,17 +171,13 @@ parts:
       - nasm
       - quilt
       - unzip
+      - wget
       - zip
     override-pull: |
       VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
       BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
       ROOT=https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD
       wget -O - $ROOT/source/firefox-$VERSION.source.tar.xz | tar -x --xz --strip-components=1
-      mkdir langpacks
-      LOCALES=$(python3 taskcluster/docker/firefox-snap/extract_locales_from_l10n_json.py browser/locales/l10n-changesets.json)
-      for LOCALE in $LOCALES; do
-        wget -O langpacks/langpack-$LOCALE@firefox.mozilla.org.xpi $ROOT/linux-x86_64/xpi/$LOCALE.xpi
-      done
     override-build: |
       export PATH=$HOME/.cargo/bin:$PATH
       QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
@@ -196,7 +195,6 @@ parts:
       fi
       export MOZBUILD_STATE_PATH=$SNAPCRAFT_PART_BUILD/.mozbuild
       MACH="env -u LD_LIBRARY_PATH -u PYTHONPATH /usr/bin/python3 ./mach"
-      $MACH create-mach-environment
       $MACH configure --prefix=$SNAPCRAFT_PART_INSTALL/usr
       $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
       $MACH install
@@ -205,7 +203,6 @@ parts:
       cp taskcluster/docker/firefox-snap/firefox.desktop $SNAPCRAFT_PART_INSTALL/
       cp browser/branding/official/default256.png $SNAPCRAFT_PART_INSTALL/
       sed -i 's/\(^Icon=\).*$/\1\/default256.png/' $SNAPCRAFT_PART_INSTALL/firefox.desktop
-      cp langpacks/langpack-*.xpi $DISTRIBUTION/extensions/
     stage-packages:
       - libcurl4
       - libpci3
@@ -235,6 +232,29 @@ parts:
       - usr/lib/*/libssl.so.*
       - usr/lib/*/libwind.so.*
       - usr/lib/*/libXt.so.*
+
+  firefox-langpacks:
+    plugin: nil
+    build-packages:
+      - coreutils
+      - sed
+      - wget
+    override-pull: |
+      VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
+      BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
+      SERVER=https://ftp.mozilla.org
+      ROOT=$SERVER/pub/firefox/candidates/$VERSION-candidates/build$BUILD
+      XPIS=$(wget -O - $ROOT/linux-x86_64/xpi/ | sed -n 's/.* href="\(.*\.xpi\)".*/\1/p')
+      for XPI in $XPIS; do
+        wget $SERVER$XPI
+      done
+    override-prime: |
+      INSTALLDIR=$SNAPCRAFT_PRIME/usr/lib/firefox/distribution/extensions
+      mkdir -p $INSTALLDIR
+      for XPI in $(ls $SNAPCRAFT_PART_SRC/*.xpi); do
+        LANGCODE=$(basename $XPI .xpi)
+        cp $XPI $INSTALLDIR/langpack-$LANGCODE@firefox.mozilla.org.xpi
+      done
 
   launcher:
     plugin: nil
