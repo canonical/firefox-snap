@@ -1,1 +1,6 @@
 angle-add-missing-cmath-include.patch
+upstream-D133409.diff
+upstream-D117104.diff
+upstream-D134435.diff
+upstream-3607c4937e84.diff
+upstream-D134738.diff
