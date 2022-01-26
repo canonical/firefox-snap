@@ -18,6 +18,9 @@ jobs:
       - uses: actions/checkout@v2
         with:
           ref: nightly
+      - name: Extract current version
+        id: extract-current-version
+        run: ./.github/scripts/extract-current-version.sh
       - uses: snapcore/action-build@v1
         id: build-new-snap-nightly
       - uses: snapcore/action-publish@v1
@@ -25,3 +28,23 @@ jobs:
           store_login: ${{ secrets.SNAPSTORE_LOGIN }}
           snap: ${{ steps.build-new-snap-nightly.outputs.snap }}
           release: edge
+      - name: Install the marionette driver
+        run: |
+          sudo apt update && sudo apt install python3-pip
+          pip3 install marionette_driver
+      - name: Create missing user runtime directory
+        run: |
+          sudo mkdir -p /run/user/$UID
+          sudo chown $USER /run/user/$UID
+      - name: Install the snap from the store and run some basic tests
+        run: |
+          version=${{ steps.extract-current-version.outputs.version }}
+          sudo snap install firefox --edge
+          channel=$(snap info firefox | grep tracking: | cut -d: -f2 | xargs)
+          [ $channel = "latest/edge" ]
+          installed=$(snap info firefox | grep installed: | cut -d: -f2 | xargs | cut -d' ' -f1)
+          [ $installed = $version ]
+          runtimeversion=$(snap run firefox --version)
+          snap run firefox --headless --marionette &
+          pid=$!
+          ./.github/scripts/firefox-basic-tests.py $pid "$runtimeversion"
