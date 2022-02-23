@@ -46,6 +46,36 @@ apps:
       - u2f-devices
       - unity7
       - upower-observe
+  geckodriver:
+    command: usr/lib/firefox/geckodriver
+    extensions: [gnome-3-38]
+    plugs:
+      - network-bind
+      # + all the plugs required by firefox, so that when geckodriver
+      # executes firefox it inherits the correct set of permissions
+      - audio-playback
+      - audio-record
+      - avahi-observe
+      - browser-sandbox
+      - camera
+      - cups-control
+      - gsettings
+      - hardware-observe
+      - home
+      - host-hunspell
+      - joystick
+      - network
+      - network-observe
+      - opengl
+      - removable-media
+      - screen-inhibit-control
+      - system-packages-doc
+      - u2f-devices
+      - unity7
+      - upower-observe
+    slots:
+      - dbus-daemon
+      - mpris
 
 plugs:
   browser-sandbox:
@@ -262,6 +292,7 @@ parts:
       find . -name 'work-products.bin' -delete
       DUMP_SYMS=$SNAPCRAFT_STAGE/usr/bin/dump_syms $MACH buildsymbols
       $MACH install
+      cp obj-*/dist/bin/geckodriver $SNAPCRAFT_PART_INSTALL/usr/lib/firefox/
       DISTRIBUTION=$SNAPCRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
       cp taskcluster/docker/firefox-snap/firefox.desktop $SNAPCRAFT_PART_INSTALL/
