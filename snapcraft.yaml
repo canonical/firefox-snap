@@ -76,18 +76,13 @@ parts:
   clang:
     plugin: nil
     build-packages:
+      - libtinfo5
       - wget
-      - on amd64:
-        - libtinfo6
-      - on arm64:
-        - libtinfo5
-      - on armhf:
-        - libtinfo5
     override-pull: |
-      LLVM_RELEASE=13.0.0
+      LLVM_RELEASE=13.0.1
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE/clang+llvm-$LLVM_RELEASE-
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        SUFFIX=x86_64-linux-gnu-ubuntu-20.04.tar.xz
+        SUFFIX=x86_64-linux-gnu-ubuntu-18.04.tar.xz
       elif [ $SNAPCRAFT_TARGET_ARCH = "armhf" ]; then
         SUFFIX=armv7a-linux-gnueabihf.tar.xz
       elif [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
