@@ -63,7 +63,7 @@ parts:
     build-packages:
       - wget
     override-pull: wget -O rustup.sh https://sh.rustup.rs
-    override-build: sh rustup.sh -q -y --default-toolchain 1.57.0
+    override-build: sh rustup.sh -q -y --default-toolchain 1.59.0
     override-prime: ''
 
   cbindgen:
