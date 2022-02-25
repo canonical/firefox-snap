@@ -64,7 +64,7 @@ parts:
       - wget
     override-pull: wget -O rustup.sh https://sh.rustup.rs
     override-build: |
-      REQUIRED_RUST_VERSION=1.57.0
+      REQUIRED_RUST_VERSION=1.58.0
       sh rustup.sh -q -y --default-toolchain $REQUIRED_RUST_VERSION
     override-prime: ''
 
