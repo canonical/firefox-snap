@@ -1,5 +1,5 @@
 name: firefox
-version: "98.0b9-1"
+version: "99.0b1-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -64,7 +64,7 @@ parts:
       - wget
     override-pull: wget -O rustup.sh https://sh.rustup.rs
     override-build: |
-      REQUIRED_RUST_VERSION=1.58.0
+      REQUIRED_RUST_VERSION=1.59.0
       sh rustup.sh -q -y --default-toolchain $REQUIRED_RUST_VERSION
     override-prime: ''
 
