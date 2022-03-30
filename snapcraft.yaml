@@ -1,5 +1,5 @@
 name: firefox
-version: "91.7.1esr-2"
+version: "91.8.0esr-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -63,8 +63,10 @@ parts:
     build-packages:
       - wget
     override-pull: wget -O rustup.sh https://sh.rustup.rs
-    # Pin rust version to 1.55.0 because when built with 1.56.0, audio capture doesn't work (https://bugzilla.mozilla.org/1732815)
-    override-build: sh rustup.sh -q -y --default-toolchain 1.55.0
+    override-build: |
+      # Pin rust version to 1.55.0 because when built with 1.56.0, audio capture doesn't work (https://bugzilla.mozilla.org/1732815)
+      REQUIRED_RUST_VERSION=1.55.0
+      sh rustup.sh -q -y --default-toolchain $REQUIRED_RUST_VERSION
     override-prime: ''
 
   cbindgen:
