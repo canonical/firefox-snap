@@ -1,5 +1,5 @@
 name: firefox
-version: "99.0-2"
+version: "99.0.1-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
