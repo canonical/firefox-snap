@@ -1,2 +1,4 @@
 angle-add-missing-cmath-include.patch
 upstream-D134738.diff
+upstream-D142373.patch
+upstream-D144030.diff
