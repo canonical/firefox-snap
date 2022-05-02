@@ -1,5 +1,5 @@
 name: firefox
-version: "100.0b9-1"
+version: "101.0b1-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -64,7 +64,7 @@ parts:
       - wget
     override-pull: wget -O rustup.sh https://sh.rustup.rs
     override-build: |
-      REQUIRED_RUST_VERSION=1.59.0
+      REQUIRED_RUST_VERSION=1.60.0
       sh rustup.sh -q -y --default-toolchain $REQUIRED_RUST_VERSION
     override-prime: ''
 
@@ -84,7 +84,7 @@ parts:
       - make
       - wget
     override-pull: |
-      LLVM_RELEASE=13.0.1
+      LLVM_RELEASE=14.0.0
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
       BINARIES_BASENAME=clang+llvm-$LLVM_RELEASE
