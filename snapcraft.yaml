@@ -13,9 +13,6 @@ apps:
     desktop: firefox.desktop
     extensions: [gnome-3-38]
     environment:
-      # Disable native Wayland support until it is properly tested
-      # (see https://bugzilla.mozilla.org/show_bug.cgi?id=1725245)
-      DISABLE_WAYLAND: 1
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: "$SNAP/usr/share/pipewire/pipewire.conf"
