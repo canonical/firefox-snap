@@ -105,7 +105,7 @@ parts:
         cd llvm-*.src
         mkdir build
         cd build
-        cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$SNAPCRAFT_PART_INSTALL/usr ..
+        cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DLLVM_INCLUDE_BENCHMARKS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$SNAPCRAFT_PART_INSTALL/usr ..
         make -j$SNAPCRAFT_PARALLEL_BUILD_COUNT install-LLVMgold-stripped
       fi
     override-stage: |
