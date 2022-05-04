@@ -2,9 +2,9 @@ name: Beta snap build
 
 on:
   # Run whenever a new revision is pushed to the beta branch.
-  push:
-    branches:
-      - beta
+  #push:
+  #  branches:
+  #    - beta
   # Allow running manually, for testing purposes.
   workflow_dispatch:
 
