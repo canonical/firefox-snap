@@ -1,0 +1,33 @@
+name: Check for new rust requirement on the beta branch
+
+on:
+  schedule:
+    # run daily (at 5:17 UTC)
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  check-new-rust-requirement-beta:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: beta
+          persist-credentials: false
+      - name: Install script dependencies
+        run: sudo apt update && sudo apt install coreutils curl dpkg grep
+      - name: Update rust requirement if needed
+        run: |
+          CURRENT=$(grep -m1 REQUIRED_RUST_VERSION snapcraft.yaml | cut -d= -f2)
+          echo "Current rust version requirement: $CURRENT"
+          FILE=https://hg.mozilla.org/releases/mozilla-beta/raw-file/tip/python/mozboot/mozboot/util.py
+          NEW=$(curl -s $FILE | grep MINIMUM_RUST_VERSION | cut -d= -f2 | cut -d\" -f2)
+          echo "New rust version requirement: $NEW"
+          if $(dpkg --compare-versions $CURRENT lt $NEW); then
+            sed -i "s/\(REQUIRED_RUST_VERSION=\)$CURRENT/\1$NEW/" snapcraft.yaml
+            git add snapcraft.yaml
+            git config user.name "GitHub Actions"
+            git config user.email "actions@github.com"
+            git commit -m "Bump rust requirement ($NEW)."
+            git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git beta
+          fi
