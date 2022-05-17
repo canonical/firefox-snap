@@ -40,10 +40,4 @@ if [ ! -d "$DOTMOZILLA" ]; then
   fi
 fi
 
-# Strictly confined snaps have a private /tmp area, not shared with other
-# applications. This is a workaround to enable opening files downloaded with
-# Firefox with other apps installed on the host system.
-# See https://forum.snapcraft.io/t/sharing-files-via-tmp/1613 for details.
-export TMPDIR="$(xdg-user-dir DOWNLOAD)/firefox.tmp"
-
 exec "$SNAP/usr/lib/firefox/firefox" "$@"
