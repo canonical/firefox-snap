@@ -1,5 +1,5 @@
 name: firefox
-version: "100.0.2-1"
+version: "101.0-2"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -41,6 +41,35 @@ apps:
       - u2f-devices
       - unity7
       - upower-observe
+  geckodriver:
+    command: usr/lib/firefox/geckodriver
+    extensions: [gnome-3-38]
+    plugs:
+      - network-bind
+      # + all the plugs required by firefox, so that when geckodriver
+      # executes firefox it inherits the correct set of permissions
+      - audio-playback
+      - audio-record
+      - avahi-observe
+      - browser-sandbox
+      - camera
+      - cups-control
+      - gsettings
+      - hardware-observe
+      - home
+      - joystick
+      - network
+      - network-observe
+      - opengl
+      - removable-media
+      - screen-inhibit-control
+      - system-packages-doc
+      - u2f-devices
+      - unity7
+      - upower-observe
+    slots:
+      - dbus-daemon
+      - mpris
 
 plugs:
   browser-sandbox:
@@ -64,7 +93,7 @@ parts:
       - wget
     override-pull: wget -O rustup.sh https://sh.rustup.rs
     override-build: |
-      REQUIRED_RUST_VERSION=1.59.0
+      REQUIRED_RUST_VERSION=1.60.0
       sh rustup.sh -q -y --default-toolchain $REQUIRED_RUST_VERSION
     override-prime: ''
 
@@ -84,7 +113,7 @@ parts:
       - make
       - wget
     override-pull: |
-      LLVM_RELEASE=13.0.1
+      LLVM_RELEASE=14.0.0
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
       BINARIES_BASENAME=clang+llvm-$LLVM_RELEASE
@@ -105,7 +134,7 @@ parts:
         cd llvm-*.src
         mkdir build
         cd build
-        cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$SNAPCRAFT_PART_INSTALL/usr ..
+        cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DLLVM_INCLUDE_BENCHMARKS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$SNAPCRAFT_PART_INSTALL/usr ..
         make -j$SNAPCRAFT_PARALLEL_BUILD_COUNT install-LLVMgold-stripped
       fi
     override-stage: |
@@ -235,6 +264,7 @@ parts:
         $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
       fi
       $MACH install
+      cp obj-*/dist/bin/geckodriver $SNAPCRAFT_PART_INSTALL/usr/lib/firefox/
       DISTRIBUTION=$SNAPCRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
       cp taskcluster/docker/firefox-snap/firefox.desktop $SNAPCRAFT_PART_INSTALL/
