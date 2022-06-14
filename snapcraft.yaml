@@ -157,6 +157,7 @@ parts:
     build-packages:
       - cmake
       - coreutils
+      - file
       - git
       - libasound2-dev
       - libdbus-glib-1-dev
@@ -178,6 +179,8 @@ parts:
       ROOT=https://ftp.mozilla.org/pub/firefox/nightly/latest-mozilla-central
       REVISION=$(wget -O - $ROOT/firefox-$SNAPCRAFT_PROJECT_VERSION.en-US.linux-x86_64.txt | tail -1 | sed -n "s#^$REPO/rev/\(.*\)\$#\1#p")
       hg clone $REPO -u $REVISION .
+      MACH="env -u LD_LIBRARY_PATH -u PYTHONPATH /usr/bin/python3 ./mach"
+      $MACH artifact toolchain --from-build linux64-dump_syms
       rm -rf .hg
     override-build: |
       export PATH=$HOME/.cargo/bin:$PATH
@@ -198,6 +201,8 @@ parts:
       MACH="env -u LD_LIBRARY_PATH -u PYTHONPATH /usr/bin/python3 ./mach"
       $MACH configure --prefix=$SNAPCRAFT_PART_INSTALL/usr
       $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
+      export DUMP_SYMS=$(pwd)/dump_syms/dump_syms
+      $MACH buildsymbols
       $MACH install
       DISTRIBUTION=$SNAPCRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
@@ -341,6 +346,25 @@ parts:
       cat apikeys | jq .MOZ_MOZILLA_API_KEY | tr -d '"' > $SNAPCRAFT_PART_INSTALL/mozilla-desktop-geoloc-api.key
       echo "ac_add_options --with-mozilla-api-keyfile=$SNAPCRAFT_STAGE/mozilla-desktop-geoloc-api.key" >> $MOZCONFIG
     override-prime: ''
+
+  debug-symbols:
+    plugin: nil
+    build-packages:
+      - iputils-ping
+      - python3
+      - python3-virtualenv
+    after:
+      - firefox
+    override-pull: |
+      echo "I AM DEBUG"
+      ping -c 4 8.8.8.8
+      export SYMBOLS_ARCHIVE=../../firefox/build/obj-*/dist/firefox-*.crashreporter-symbols.zip
+      virtualenv venv/
+      source venv/bin/activate
+      venv/bin/pip3 install redo requests argparse
+      SOCORRO_SYMBOL_UPLOAD_URL=https://symbols.stage.mozaws.net/upload/ SOCORRO_SYMBOL_UPLOAD_TOKEN_FILE="$SNAPCRAFT_PROJECT_DIR/socorro-token" venv/bin/python3 ../../firefox/src/toolkit/crashreporter/tools/upload_symbols.py $SYMBOLS_ARCHIVE
+      cp $SYMBOLS_ARCHIVE $SNAPCRAFT_PROJECT_DIR/
+      deactivate
 
 slots:
   dbus-daemon:
