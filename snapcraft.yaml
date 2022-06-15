@@ -18,7 +18,7 @@ summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
 grade: stable
-base: core20
+base: core22
 assumes:
   - snapd2.54 # for mount-control
 compression: lzo
@@ -35,14 +35,14 @@ apps:
   firefox:
     command: firefox.launcher
     desktop: firefox.desktop
-    extensions: [gnome-3-38]
+    extensions: [gnome]
     environment:
       DICPATH: "$SNAP_COMMON/snap-hunspell"
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: "$SNAP/usr/share/pipewire/pipewire.conf"
-      PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/pipewire-0.3"
-      SPA_PLUGIN_DIR: "$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/spa-0.2"
+      PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/pipewire-0.3"
+      SPA_PLUGIN_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/spa-0.2"
     slots:
       - dbus-daemon
       - mpris
@@ -69,7 +69,7 @@ apps:
       - upower-observe
   geckodriver:
     command: usr/lib/firefox/geckodriver
-    extensions: [gnome-3-38]
+    extensions: [gnome]
     plugs:
       - network-bind
       # + all the plugs required by firefox, so that when geckodriver
@@ -129,15 +129,15 @@ parts:
       # Do not use rustup to work around https://forum.snapcraft.io/t/armhf-builds-on-launchpad-timing-out/31008
       REQUIRED_RUST_VERSION=1.66.0
       ROOT=https://static.rust-lang.org/dist/rust-$REQUIRED_RUST_VERSION
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         BINARIES_SUFFIX=x86_64-unknown-linux-gnu
-      elif [ $SNAPCRAFT_TARGET_ARCH = "armhf" ]; then
+      elif [ $CRAFT_TARGET_ARCH = "armhf" ]; then
         BINARIES_SUFFIX=armv7-unknown-linux-gnueabihf
-      elif [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
+      elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
         BINARIES_SUFFIX=aarch64-unknown-linux-gnu
       fi
       wget -O - $ROOT-$BINARIES_SUFFIX.tar.gz | tar -x -z --strip-components=1
-      ./install.sh --prefix=/usr --destdir=$SNAPCRAFT_STAGE
+      ./install.sh --prefix=/usr --destdir=$CRAFT_STAGE
     override-prime: ''
 
   cbindgen:
@@ -161,33 +161,33 @@ parts:
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
       BINARIES_BASENAME=clang+llvm-$LLVM_RELEASE
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         BINARIES_SUFFIX=x86_64-linux-gnu-ubuntu-18.04.tar.xz
-      elif [ $SNAPCRAFT_TARGET_ARCH = "armhf" ]; then
+      elif [ $CRAFT_TARGET_ARCH = "armhf" ]; then
         BINARIES_SUFFIX=armv7a-linux-gnueabihf.tar.xz
-      elif [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
+      elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
         BINARIES_SUFFIX=aarch64-linux-gnu.tar.xz
       fi
       wget -O - $ROOT/$BINARIES_BASENAME-$BINARIES_SUFFIX | tar -x --xz
       # And cmake-$LLVM_RELEASE.src needed on LLVM >= 15.0.0
       wget -O - $ROOT/cmake-$LLVM_RELEASE.src.tar.xz | tar -x --xz
       mv cmake-$LLVM_RELEASE.src cmake
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # And the sources to build LLVMgold.so, which isn't distributed in a binary form
         wget -O - $ROOT/llvm-$LLVM_RELEASE.src.tar.xz | tar -x --xz
       fi
     override-build: |
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         cd llvm-$LLVM_RELEASE.src
         mkdir build
         cd build
-        cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DLLVM_INCLUDE_BENCHMARKS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$SNAPCRAFT_PART_INSTALL/usr ..
-        make -j$SNAPCRAFT_PARALLEL_BUILD_COUNT install-LLVMgold-stripped
+        cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DLLVM_INCLUDE_BENCHMARKS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CRAFT_PART_INSTALL/usr ..
+        make -j$CRAFT_PARALLEL_BUILD_COUNT install-LLVMgold-stripped
       fi
     override-stage: |
-      snapcraftctl stage
+      craftctl default
       mkdir -p usr
-      cp -R $SNAPCRAFT_PART_SRC/clang+llvm-$LLVM_RELEASE-*/* usr/
+      cp -R $CRAFT_PART_SRC/clang+llvm-$LLVM_RELEASE-*/* usr/
     override-prime: ''
 
   dump-syms:
@@ -200,9 +200,9 @@ parts:
       - jq
       - python3-yaml
     override-pull: |
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ] || [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
-        VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
-        BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
+      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+        VERSION=$(echo $CRAFT_PROJECT_VERSION | cut -d- -f1)
+        BUILD=$(echo $CRAFT_PROJECT_VERSION | cut -d- -f2)
         FFINFO=$(curl -s https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD/linux-x86_64/en-US/firefox-$VERSION.json)
         MOZ_SOURCE_REPO=$(echo $FFINFO | jq -r .moz_source_repo)
         MOZ_SOURCE_STAMP=$(echo $FFINFO | jq -r .moz_source_stamp)
@@ -213,9 +213,9 @@ parts:
         git clone "${REPO}" . && git checkout "${SHA1}"
       fi
     override-build: |
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ] || [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
+      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
         cargo build --release
-        cp target/release/dump_syms $SNAPCRAFT_STAGE/usr/bin/
+        cp target/release/dump_syms $CRAFT_STAGE/usr/bin/
       fi
 
   #This is a temporary workaround to including the hunspell content snap,
@@ -230,7 +230,7 @@ parts:
       set -eu
       apt download $(apt-cache search '^hunspell-.*$' |
         awk '!/myspell|dbgsym|tools|transitional|dependency/{printf "%s ", $1}')
-      find . -name "*.deb" -exec dpkg-deb -x {} "$SNAPCRAFT_PART_INSTALL" \;
+      find . -name "*.deb" -exec dpkg-deb -x {} "$CRAFT_PART_INSTALL" \;
     filesets:
       hunspell-dictionaries: [usr/share/hunspell]
     stage:
@@ -254,8 +254,8 @@ parts:
       wget $ROOT/wasi-sysroot-$WASI_RELEASE.tar.gz
       wget $ROOT/libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
     override-build: |
-      tar -C $SNAPCRAFT_STAGE -xf wasi-sysroot-$WASI_RELEASE.tar.gz
-      tar -C $SNAPCRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
+      tar -C $CRAFT_STAGE -xf wasi-sysroot-$WASI_RELEASE.tar.gz
+      tar -C $CRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
     override-prime: ''
 
   nodejs:
@@ -266,22 +266,22 @@ parts:
       - NODEJS_RELEASE: "v16.18.1"
     override-pull: |
       ROOT=https://nodejs.org/dist/$NODEJS_RELEASE/node-$NODEJS_RELEASE-linux-
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         SUFFIX=x64.tar.xz
-      elif [ $SNAPCRAFT_TARGET_ARCH = "armhf" ]; then
+      elif [ $CRAFT_TARGET_ARCH = "armhf" ]; then
         SUFFIX=armv7l.tar.xz
-      elif [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
+      elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
         SUFFIX=arm64.tar.xz
       fi
       wget -O - $ROOT$SUFFIX | tar -x --xz
     override-build: |
-      cp -R node-$NODEJS_RELEASE-linux-*/ $SNAPCRAFT_PART_INSTALL/usr/
+      cp -R node-$NODEJS_RELEASE-linux-*/ $CRAFT_PART_INSTALL/usr/
     override-prime: ''
 
   mozconfig:
     plugin: nil
     override-stage: |
-      cp $SNAPCRAFT_PROJECT_DIR/mozconfig.in $SNAPCRAFT_STAGE/mozconfig
+      cp $CRAFT_PROJECT_DIR/mozconfig.in $CRAFT_STAGE/mozconfig
     override-prime: ''
 
   # Launchpad builders have a timeout for how long they are allowed to access
@@ -327,17 +327,17 @@ parts:
       - xvfb
       - zip
     override-pull: |
-      VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
-      BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
+      VERSION=$(echo $CRAFT_PROJECT_VERSION | cut -d- -f1)
+      BUILD=$(echo $CRAFT_PROJECT_VERSION | cut -d- -f2)
       ROOT=https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD
       wget -O - $ROOT/source/firefox-$VERSION.source.tar.xz | tar -x --xz --strip-components=1
-      mkdir -p $SNAPCRAFT_STAGE/debug-symbols
-      cp toolkit/crashreporter/tools/upload_symbols.py $SNAPCRAFT_STAGE/debug-symbols/
+      mkdir -p $CRAFT_STAGE/debug-symbols
+      cp toolkit/crashreporter/tools/upload_symbols.py $CRAFT_STAGE/debug-symbols/
     override-build: |
-      QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
-      export MOZCONFIG="$SNAPCRAFT_STAGE/mozconfig"
+      QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
+      export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       BUILD_DBGSYMS=false
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ] || [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
+      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
         # Build and publish debug symbols for amd64 and arm64 only,
         # because Launchpad builders for armhf choke (OOM) when
         # building with debug symbols enabled, even with
@@ -358,7 +358,7 @@ parts:
       else
         echo "ac_add_options --disable-debug-symbols" >> $MOZCONFIG
       fi
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # Enable LTO and PGO (https://firefox-source-docs.mozilla.org/build/buildsystem/pgo.html) only on amd64 for now.
         # Linking with gold fails on armhf (error: undefined reference to '__aeabi_uldivmod') and would need to be
         # investigated further, and running PGO on arm64 takes forever (> 4 days in the Launchpad build environment!).
@@ -366,22 +366,22 @@ parts:
         echo "ac_add_options --enable-lto=cross" >> $MOZCONFIG
         echo "ac_add_options MOZ_PGO=1" >> $MOZCONFIG
       fi
-      if [ $SNAPCRAFT_TARGET_ARCH != "armhf" ]; then
+      if [ $CRAFT_TARGET_ARCH != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
       fi
       GNOME_SDK_SNAP=/snap/gnome-3-38-2004-sdk/current
-      export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
-      export WASI_SYSROOT=$SNAPCRAFT_STAGE/wasi-sysroot
-      export MOZBUILD_STATE_PATH=$SNAPCRAFT_PART_BUILD/.mozbuild
+      export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
+      export WASI_SYSROOT=$CRAFT_STAGE/wasi-sysroot
+      export MOZBUILD_STATE_PATH=$CRAFT_PART_BUILD/.mozbuild
       unset PYTHONPATH
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # Needed for PGO-enabled builds that execute the built binaries. This should mirror the link paths in $LDFLAGS.
-        export LD_LIBRARY_PATH=$GNOME_SDK_SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET:$GNOME_SDK_SNAP/usr/lib
+        export LD_LIBRARY_PATH=$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET:$GNOME_SDK_SNAP/usr/lib
       else
         unset LD_LIBRARY_PATH
       fi
       MACH="/usr/bin/python3 ./mach"
-      $MACH configure --prefix=$SNAPCRAFT_PART_INSTALL/usr
+      $MACH configure --prefix=$CRAFT_PART_INSTALL/usr
       $MACH uniffi generate # workaround for https://bugzilla.mozilla.org/1797714
       # Unset SNAP_INSTANCE_NAME because when snapcraft runs as a snap it is set
       # (and its value is "snapcraft"), and this interferes with firefox's
@@ -399,24 +399,24 @@ parts:
       # code path will be exercised (not confined as a snap), so that's not a
       # good solution.
       unset SNAP_INSTANCE_NAME
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
-        xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
+        xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build -j$CRAFT_PARALLEL_BUILD_COUNT
       else
-        $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
+        $MACH build -j$CRAFT_PARALLEL_BUILD_COUNT
       fi
       if [ $BUILD_DBGSYMS = "true" ]; then
-        DUMP_SYMS=$SNAPCRAFT_STAGE/usr/bin/dump_syms $MACH buildsymbols
+        DUMP_SYMS=$CRAFT_STAGE/usr/bin/dump_syms $MACH buildsymbols
       fi
       $MACH install
-      cp obj-*/dist/bin/geckodriver $SNAPCRAFT_PART_INSTALL/usr/lib/firefox/
-      DISTRIBUTION=$SNAPCRAFT_PART_INSTALL/usr/lib/firefox/distribution
+      cp obj-*/dist/bin/geckodriver $CRAFT_PART_INSTALL/usr/lib/firefox/
+      DISTRIBUTION=$CRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
-      cp taskcluster/docker/firefox-snap/firefox.desktop $SNAPCRAFT_PART_INSTALL/
-      cp browser/branding/official/default256.png $SNAPCRAFT_PART_INSTALL/
-      sed -i 's/\(^Icon=\).*$/\1\/default256.png/' $SNAPCRAFT_PART_INSTALL/firefox.desktop
+      cp taskcluster/docker/firefox-snap/firefox.desktop $CRAFT_PART_INSTALL/
+      cp browser/branding/official/default256.png $CRAFT_PART_INSTALL/
+      sed -i 's/\(^Icon=\).*$/\1\/default256.png/' $CRAFT_PART_INSTALL/firefox.desktop
       if [ $BUILD_DBGSYMS = "true" ]; then
-        cp obj-*/dist/firefox-*.crashreporter-symbols.zip $SNAPCRAFT_STAGE/debug-symbols/
+        cp obj-*/dist/firefox-*.crashreporter-symbols.zip $CRAFT_STAGE/debug-symbols/
       fi
     stage-packages:
       - libcurl4
@@ -455,8 +455,8 @@ parts:
       - sed
       - wget
     override-pull: |
-      VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
-      BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
+      VERSION=$(echo $CRAFT_PROJECT_VERSION | cut -d- -f1)
+      BUILD=$(echo $CRAFT_PROJECT_VERSION | cut -d- -f2)
       SERVER=https://ftp.mozilla.org
       ROOT=$SERVER/pub/firefox/candidates/$VERSION-candidates/build$BUILD
       XPIS=$(wget -O - $ROOT/linux-x86_64/xpi/ | sed -n 's/.* href="\(.*\.xpi\)".*/\1/p')
@@ -464,9 +464,9 @@ parts:
         wget $SERVER$XPI
       done
     override-prime: |
-      INSTALLDIR=$SNAPCRAFT_PRIME/usr/lib/firefox/distribution/extensions
+      INSTALLDIR=$CRAFT_PRIME/usr/lib/firefox/distribution/extensions
       mkdir -p $INSTALLDIR
-      for XPI in $(ls $SNAPCRAFT_PART_SRC/*.xpi); do
+      for XPI in $(ls $CRAFT_PART_SRC/*.xpi); do
         LANGCODE=$(basename $XPI .xpi)
         mkdir $INSTALLDIR/locale-$LANGCODE
         cp $XPI $INSTALLDIR/locale-$LANGCODE/langpack-$LANGCODE@firefox.mozilla.org.xpi
@@ -475,15 +475,15 @@ parts:
   launcher:
     plugin: nil
     override-prime: |
-      cp "$SNAPCRAFT_PROJECT_DIR/firefox.launcher" "$SNAPCRAFT_PRIME/"
-      cp "$SNAPCRAFT_PROJECT_DIR/patch-default-profile.py" "$SNAPCRAFT_PRIME/"
+      cp "$CRAFT_PROJECT_DIR/firefox.launcher" "$CRAFT_PRIME/"
+      cp "$CRAFT_PROJECT_DIR/patch-default-profile.py" "$CRAFT_PRIME/"
 
   distribution:
     plugin: nil
     source: https://github.com/mozilla-partners/canonical.git
     override-prime: |
-      mkdir -p $SNAPCRAFT_PRIME/usr/lib/firefox
-      cp -R $SNAPCRAFT_PART_SRC/desktop/ubuntu/distribution $SNAPCRAFT_PRIME/usr/lib/firefox/
+      mkdir -p $CRAFT_PRIME/usr/lib/firefox
+      cp -R $CRAFT_PART_SRC/desktop/ubuntu/distribution $CRAFT_PRIME/usr/lib/firefox/
 
   ffmpeg:
     plugin: nil
@@ -552,14 +552,14 @@ parts:
       - gpg
       - jq
     override-build: |
-      MOZCONFIG="$SNAPCRAFT_STAGE/mozconfig"
-      gpg -d --batch --passphrase "$(base64 -d $SNAPCRAFT_PROJECT_DIR/.passphrase)" -o apikeys $SNAPCRAFT_PROJECT_DIR/.apikeys
-      cat apikeys | jq .MOZ_GOOGLE_LOCATION_SERVICE_API_KEY | tr -d '"' > $SNAPCRAFT_PART_INSTALL/gls-gapi.data
-      echo "ac_add_options --with-google-location-service-api-keyfile=$SNAPCRAFT_STAGE/gls-gapi.data" >> $MOZCONFIG
-      cat apikeys | jq .MOZ_GOOGLE_SAFEBROWSING_API_KEY | tr -d '"' > $SNAPCRAFT_PART_INSTALL/sb-gapi.data
-      echo "ac_add_options --with-google-safebrowsing-api-keyfile=$SNAPCRAFT_STAGE/sb-gapi.data" >> $MOZCONFIG
-      cat apikeys | jq .MOZ_MOZILLA_API_KEY | tr -d '"' > $SNAPCRAFT_PART_INSTALL/mozilla-desktop-geoloc-api.key
-      echo "ac_add_options --with-mozilla-api-keyfile=$SNAPCRAFT_STAGE/mozilla-desktop-geoloc-api.key" >> $MOZCONFIG
+      MOZCONFIG="$CRAFT_STAGE/mozconfig"
+      gpg -d --batch --passphrase "$(base64 -d $CRAFT_PROJECT_DIR/.passphrase)" -o apikeys $CRAFT_PROJECT_DIR/.apikeys
+      cat apikeys | jq .MOZ_GOOGLE_LOCATION_SERVICE_API_KEY | tr -d '"' > $CRAFT_PART_INSTALL/gls-gapi.data
+      echo "ac_add_options --with-google-location-service-api-keyfile=$CRAFT_STAGE/gls-gapi.data" >> $MOZCONFIG
+      cat apikeys | jq .MOZ_GOOGLE_SAFEBROWSING_API_KEY | tr -d '"' > $CRAFT_PART_INSTALL/sb-gapi.data
+      echo "ac_add_options --with-google-safebrowsing-api-keyfile=$CRAFT_STAGE/sb-gapi.data" >> $MOZCONFIG
+      cat apikeys | jq .MOZ_MOZILLA_API_KEY | tr -d '"' > $CRAFT_PART_INSTALL/mozilla-desktop-geoloc-api.key
+      echo "ac_add_options --with-mozilla-api-keyfile=$CRAFT_STAGE/mozilla-desktop-geoloc-api.key" >> $MOZCONFIG
     override-prime: ''
 
   debug-symbols:
@@ -570,17 +570,17 @@ parts:
     after:
       - firefox
     override-pull: |
-      export SYMBOLS_ARCHIVE=$(find $SNAPCRAFT_STAGE/debug-symbols/ -type f -name "firefox-*.crashreporter-symbols.zip")
+      export SYMBOLS_ARCHIVE=$(find $CRAFT_STAGE/debug-symbols/ -type f -name "firefox-*.crashreporter-symbols.zip")
       if [ -f "$SYMBOLS_ARCHIVE" ]; then
-        if [ -f "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token" ]; then
+        if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token" ]; then
           virtualenv venv/
           source venv/bin/activate
           venv/bin/pip3 install redo requests argparse
-          SOCORRO_SYMBOL_UPLOAD_URL=https://symbols.stage.mozaws.net/upload/ SOCORRO_SYMBOL_UPLOAD_TOKEN_FILE="$SNAPCRAFT_PROJECT_DIR/symbols-upload-token" venv/bin/python3 $SNAPCRAFT_STAGE/debug-symbols/upload_symbols.py $SYMBOLS_ARCHIVE
-          rm "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token"
+          SOCORRO_SYMBOL_UPLOAD_URL=https://symbols.stage.mozaws.net/upload/ SOCORRO_SYMBOL_UPLOAD_TOKEN_FILE="$CRAFT_PROJECT_DIR/symbols-upload-token" venv/bin/python3 $CRAFT_STAGE/debug-symbols/upload_symbols.py $SYMBOLS_ARCHIVE
+          rm "$CRAFT_PROJECT_DIR/symbols-upload-token"
           deactivate
         else
-          cp $SYMBOLS_ARCHIVE $SNAPCRAFT_PROJECT_DIR/$SNAPCRAFT_PROJECT_NAME_$SNAPCRAFT_PROJECT_VERSION_$SNAPCRAFT_TARGET_ARCH.debug
+          cp $SYMBOLS_ARCHIVE $CRAFT_PROJECT_DIR/$CRAFT_PROJECT_NAME_$CRAFT_PROJECT_VERSION_$CRAFT_TARGET_ARCH.debug
         fi
       fi
 
