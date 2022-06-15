@@ -211,8 +211,8 @@ parts:
       - python3-yaml
     override-pull: |
       if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
-        VERSION=$(echo $CRAFT_PROJECT_VERSION | cut -d- -f1)
-        BUILD=$(echo $CRAFT_PROJECT_VERSION | cut -d- -f2)
+        VERSION=$(craftctl get version | cut -d- -f1)
+        BUILD=$(craftctl get version | cut -d- -f2)
         FFINFO=$(curl -s https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD/linux-x86_64/en-US/firefox-$VERSION.json)
         MOZ_SOURCE_REPO=$(echo $FFINFO | jq -r .moz_source_repo)
         MOZ_SOURCE_STAMP=$(echo $FFINFO | jq -r .moz_source_stamp)
@@ -337,8 +337,8 @@ parts:
       - xvfb
       - zip
     override-pull: |
-      VERSION=$(echo $CRAFT_PROJECT_VERSION | cut -d- -f1)
-      BUILD=$(echo $CRAFT_PROJECT_VERSION | cut -d- -f2)
+      VERSION=$(craftctl get version | cut -d- -f1)
+      BUILD=$(craftctl get version | cut -d- -f2)
       ROOT=https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD
       wget -O - $ROOT/source/firefox-$VERSION.source.tar.xz | tar -x --xz --strip-components=1
       mkdir -p $CRAFT_STAGE/debug-symbols
@@ -465,8 +465,8 @@ parts:
       - sed
       - wget
     override-pull: |
-      VERSION=$(echo $CRAFT_PROJECT_VERSION | cut -d- -f1)
-      BUILD=$(echo $CRAFT_PROJECT_VERSION | cut -d- -f2)
+      VERSION=$(craftctl get version | cut -d- -f1)
+      BUILD=$(craftctl get version | cut -d- -f2)
       SERVER=https://ftp.mozilla.org
       ROOT=$SERVER/pub/firefox/candidates/$VERSION-candidates/build$BUILD
       XPIS=$(wget -O - $ROOT/linux-x86_64/xpi/ | sed -n 's/.* href="\(.*\.xpi\)".*/\1/p')
@@ -591,7 +591,7 @@ parts:
           rm "$CRAFT_PROJECT_DIR/symbols-upload-token"
           deactivate
         else
-          cp $SYMBOLS_ARCHIVE $CRAFT_PROJECT_DIR/$CRAFT_PROJECT_NAME_$CRAFT_PROJECT_VERSION_$CRAFT_TARGET_ARCH.debug
+          cp $SYMBOLS_ARCHIVE $CRAFT_PROJECT_DIR/$CRAFT_PROJECT_NAME_$(craftctl get version)_$CRAFT_TARGET_ARCH.debug
         fi
       fi
 
