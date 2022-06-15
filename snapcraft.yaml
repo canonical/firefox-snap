@@ -121,6 +121,16 @@ layout:
     bind: $SNAP/gnome-platform/usr/share/libdrm
 
 parts:
+  meson-deps:
+    plugin: nil
+    source: https://github.com/mesonbuild/meson.git
+    source-branch: '0.62'
+    override-build: |
+      pip install .
+    build-packages:
+      - python3-pip
+      - ninja-build
+
   rust:
     plugin: nil
     build-packages:
@@ -526,6 +536,7 @@ parts:
       - usr/lib/*/libzvbi.so.*
 
   pipewire:
+    after: [ meson-deps ]
     source: https://gitlab.freedesktop.org/pipewire/pipewire/-/archive/0.3.32/pipewire-0.3.32.tar.gz
     plugin: meson
     meson-parameters:
