@@ -1,0 +1,21 @@
+Description: Add a missing include to fix an angle build failure in the snap build environment.
+ When building as a snap, MOZ_X11_CFLAGS contains "-I/snap/gnome-3-38-2004-sdk/current/usr/include",
+ which ends up in the COMPUTED_CXXFLAGS, and this confuses clang, with errors such as:
+ gfx/angle/checkout/src/compiler/translator/SymbolTable_ESSL_autogen.cpp:5605:50: error: no member named 'isnan' in namespace 'sh::BuiltInName'
+                                    BuiltInName::isnan,
+                                    ~~~~~~~~~~~~~^
+ Manually removing the include path from COMPUTED_CXXFLAGS appears to solve the issue,
+ as does adding an explicit include statement for <cmath>.
+Author: Olivier Tilloy <olivier.tilloy@canonical.com>
+
+--- a/gfx/angle/checkout/src/compiler/translator/SymbolTable_ESSL_autogen.cpp
++++ b/gfx/angle/checkout/src/compiler/translator/SymbolTable_ESSL_autogen.cpp
+@@ -11,6 +11,8 @@
+ 
+ #ifdef ANGLE_TRANSLATOR_ESSL_ONLY
+ 
++#include <cmath>
++
+ #    include "compiler/translator/SymbolTable.h"
+ 
+ #    include "angle_gl.h"

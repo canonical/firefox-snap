@@ -1,5 +1,5 @@
 name: firefox
-version: "91.10.0esr-1"
+version: "102.0esr-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -41,6 +41,35 @@ apps:
       - u2f-devices
       - unity7
       - upower-observe
+  geckodriver:
+    command: usr/lib/firefox/geckodriver
+    extensions: [gnome-3-38]
+    plugs:
+      - network-bind
+      # + all the plugs required by firefox, so that when geckodriver
+      # executes firefox it inherits the correct set of permissions
+      - audio-playback
+      - audio-record
+      - avahi-observe
+      - browser-sandbox
+      - camera
+      - cups-control
+      - gsettings
+      - hardware-observe
+      - home
+      - joystick
+      - network
+      - network-observe
+      - opengl
+      - removable-media
+      - screen-inhibit-control
+      - system-packages-doc
+      - u2f-devices
+      - unity7
+      - upower-observe
+    slots:
+      - dbus-daemon
+      - mpris
 
 plugs:
   browser-sandbox:
@@ -64,8 +93,7 @@ parts:
       - wget
     override-pull: wget -O rustup.sh https://sh.rustup.rs
     override-build: |
-      # Pin rust version to 1.55.0 because when built with 1.56.0, audio capture doesn't work (https://bugzilla.mozilla.org/1732815)
-      REQUIRED_RUST_VERSION=1.55.0
+      REQUIRED_RUST_VERSION=1.60.0
       sh rustup.sh -q -y --default-toolchain $REQUIRED_RUST_VERSION
     override-prime: ''
 
@@ -79,47 +107,59 @@ parts:
   clang:
     plugin: nil
     build-packages:
+      - binutils-dev
+      - cmake
+      - libtinfo5
+      - make
       - wget
-      - on amd64:
-        - libtinfo6
-      - on arm64:
-        - libtinfo5
-      - on armhf:
-        - libtinfo5
     override-pull: |
-      LLVM_RELEASE=13.0.0
-      ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE/clang+llvm-$LLVM_RELEASE-
+      LLVM_RELEASE=14.0.0
+      ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
+      # Download the binaries
+      BINARIES_BASENAME=clang+llvm-$LLVM_RELEASE
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        SUFFIX=x86_64-linux-gnu-ubuntu-20.04.tar.xz
+        BINARIES_SUFFIX=x86_64-linux-gnu-ubuntu-18.04.tar.xz
       elif [ $SNAPCRAFT_TARGET_ARCH = "armhf" ]; then
-        SUFFIX=armv7a-linux-gnueabihf.tar.xz
+        BINARIES_SUFFIX=armv7a-linux-gnueabihf.tar.xz
       elif [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
-        SUFFIX=aarch64-linux-gnu.tar.xz
+        BINARIES_SUFFIX=aarch64-linux-gnu.tar.xz
       fi
-      wget -O - $ROOT$SUFFIX | tar -x --xz --strip-components=1
+      wget -O - $ROOT/$BINARIES_BASENAME-$BINARIES_SUFFIX | tar -x --xz
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        # And the sources to build LLVMgold.so, which isn't distributed in a binary form
+        wget -O - $ROOT/llvm-$LLVM_RELEASE.src.tar.xz | tar -x --xz
+      fi
     override-build: |
-      mkdir -p $SNAPCRAFT_STAGE/usr
-      cp -R * $SNAPCRAFT_STAGE/usr/
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        cd llvm-*.src
+        mkdir build
+        cd build
+        cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DLLVM_INCLUDE_BENCHMARKS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$SNAPCRAFT_PART_INSTALL/usr ..
+        make -j$SNAPCRAFT_PARALLEL_BUILD_COUNT install-LLVMgold-stripped
+      fi
+    override-stage: |
+      snapcraftctl stage
+      mkdir -p usr
+      cp -R $SNAPCRAFT_PART_SRC/clang+llvm-*/* usr/
     override-prime: ''
 
   wasi-sdk:
     plugin: nil
+    after:
+      - clang
     build-packages:
-      - patch
       - wget
     override-pull: |
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        WASI_RELEASE=12.0
-        ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-12
+        WASI_RELEASE=14.0
+        ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-14
         wget $ROOT/wasi-sysroot-$WASI_RELEASE.tar.gz
         wget $ROOT/libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
-        wget -O libcxx-stdcpp-threads.patch https://github.com/llvm/llvm-project/commit/871f96eed3797061c8b1c82fb77d077d110a2da7.patch
       fi
     override-build: |
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         tar -C $SNAPCRAFT_STAGE -xf wasi-sysroot-*.tar.gz
         tar -C $SNAPCRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-*.tar.gz
-        patch -d $SNAPCRAFT_STAGE/wasi-sysroot/include/c++/v1 -p3 < libcxx-stdcpp-threads.patch
       fi
     override-prime: ''
 
@@ -128,7 +168,7 @@ parts:
     build-packages:
       - wget
     override-pull: |
-      NODEJS_RELEASE=v16.13.1
+      NODEJS_RELEASE=v16.15.1
       ROOT=https://nodejs.org/dist/$NODEJS_RELEASE/node-$NODEJS_RELEASE-linux-
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         SUFFIX=x64.tar.xz
@@ -142,22 +182,6 @@ parts:
       cp -R node-*/ $SNAPCRAFT_PART_INSTALL/usr/
     override-prime: ''
 
-  yq:
-    plugin: nil
-    build-packages:
-      - wget
-    override-pull: |
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        YQ_ROOT=https://github.com/mikefarah/yq/releases/download
-        YQ_VERSION=v4.12.1
-        wget -O - $YQ_ROOT/$YQ_VERSION/yq_linux_amd64.tar.gz | tar -x --gzip
-      fi
-    override-build: |
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        cp yq_linux_amd64 $SNAPCRAFT_STAGE/usr/bin/yq
-      fi
-    override-prime: ''
-
   # Launchpad builders have a timeout for how long they are allowed to access
   # the internet (through a proxy) starting from the start of the build.
   # Since the firefox part takes a long time to build, we need to ensure
@@ -167,19 +191,21 @@ parts:
   firefox:
     plugin: nil
     after:
-      - rust
-      - cbindgen
-      - wasi-sdk
-      - clang
-      - nodejs
       - apikeys
+      - cbindgen
+      - clang
       - distribution
       - ffmpeg
-      - yq
+      - firefox-langpacks
+      - nodejs
       - pipewire
+      - rust
+      - wasi-sdk
     build-packages:
       - cmake
+      - coreutils
       - git
+      - libasound2-dev
       - libdbus-glib-1-dev
       - libgtk2.0-dev
       - libpython3-dev
@@ -190,39 +216,26 @@ parts:
       - nasm
       - quilt
       - unzip
+      - wget
+      - xvfb
       - zip
     override-pull: |
       VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
       BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
       ROOT=https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD
       wget -O - $ROOT/source/firefox-$VERSION.source.tar.xz | tar -x --xz --strip-components=1
-      mkdir langpacks
-      LOCALES=$(python3 taskcluster/docker/firefox-snap/extract_locales_from_l10n_json.py browser/locales/l10n-changesets.json)
-      for LOCALE in $LOCALES; do
-        wget -O langpacks/langpack-$LOCALE@firefox.mozilla.org.xpi $ROOT/linux-x86_64/xpi/$LOCALE.xpi
-      done
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        # Unfortunately, mach's command to download toolchain artifacts
-        # (e.g. "./mach artifact toolchain --from-build linux64-lucetc")
-        # requires being run from a VCS checkout, and this isn't one, so
-        # some explicit YAML parsing is needed.
-        TOOLCHAINS_YAML=taskcluster/ci/fetch/toolchains.yml
-        LUCETC_FETCH=.lucetc-source.fetch
-        YQ="env -u LD_LIBRARY_PATH yq eval"
-        LUCETC_REPO=$($YQ $LUCETC_FETCH.repo $TOOLCHAINS_YAML)
-        LUCETC_REV=$($YQ $LUCETC_FETCH.revision $TOOLCHAINS_YAML)
-        git clone $LUCETC_REPO lucetc
-        git -C lucetc checkout $LUCETC_REV
-        git -C lucetc submodule update --init --recursive
-      fi
     override-build: |
       export PATH=$HOME/.cargo/bin:$PATH
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        CC=$SNAPCRAFT_STAGE/usr/bin/clang make -C lucetc build
-        export LUCETC=$SNAPCRAFT_PART_BUILD/lucetc/target/release/lucetc
-      fi
       QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        # Enable LTO and PGO (https://firefox-source-docs.mozilla.org/build/buildsystem/pgo.html) only on amd64 for now.
+        # Linking with gold fails on armhf (error: undefined reference to '__aeabi_uldivmod') and would need to be
+        # investigated further, and running PGO on arm64 takes forever (> 4 days in the Launchpad build environment!).
+        echo "ac_add_options --enable-linker=gold" >> $MOZCONFIG
+        echo "ac_add_options --enable-lto=cross" >> $MOZCONFIG
+        echo "ac_add_options MOZ_PGO=1" >> $MOZCONFIG
+      fi
       if [ $SNAPCRAFT_TARGET_ARCH != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
       fi
@@ -231,18 +244,32 @@ parts:
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         export WASI_SYSROOT=$SNAPCRAFT_STAGE/wasi-sysroot
         export WASM_SANDBOXED_LIBRARIES=graphite,ogg,hunspell
+      else
+        echo "ac_add_options --without-wasm-sandboxed-libraries" >> $MOZCONFIG
       fi
-      MACH="env -u LD_LIBRARY_PATH -u PYTHONPATH /usr/bin/python3 ./mach"
-      $MACH create-mach-environment
+      export MOZBUILD_STATE_PATH=$SNAPCRAFT_PART_BUILD/.mozbuild
+      unset PYTHONPATH
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        # Needed for PGO-enabled builds that execute the built binaries. This should mirror the link paths in $LDFLAGS.
+        export LD_LIBRARY_PATH=$GNOME_SDK_SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET:$GNOME_SDK_SNAP/usr/lib
+      else
+        unset LD_LIBRARY_PATH
+      fi
+      MACH="/usr/bin/python3 ./mach"
       $MACH configure --prefix=$SNAPCRAFT_PART_INSTALL/usr
-      $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        # xvfb is only needed when doing a PGO-enabled build
+        xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
+      else
+        $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
+      fi
       $MACH install
+      cp obj-*/dist/bin/geckodriver $SNAPCRAFT_PART_INSTALL/usr/lib/firefox/
       DISTRIBUTION=$SNAPCRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
       cp taskcluster/docker/firefox-snap/firefox.desktop $SNAPCRAFT_PART_INSTALL/
       cp browser/branding/official/default256.png $SNAPCRAFT_PART_INSTALL/
       sed -i 's/\(^Icon=\).*$/\1\/default256.png/' $SNAPCRAFT_PART_INSTALL/firefox.desktop
-      cp langpacks/langpack-*.xpi $DISTRIBUTION/extensions/
     stage-packages:
       - libcurl4
       - libpci3
@@ -272,6 +299,29 @@ parts:
       - usr/lib/*/libssl.so.*
       - usr/lib/*/libwind.so.*
       - usr/lib/*/libXt.so.*
+
+  firefox-langpacks:
+    plugin: nil
+    build-packages:
+      - coreutils
+      - sed
+      - wget
+    override-pull: |
+      VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
+      BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
+      SERVER=https://ftp.mozilla.org
+      ROOT=$SERVER/pub/firefox/candidates/$VERSION-candidates/build$BUILD
+      XPIS=$(wget -O - $ROOT/linux-x86_64/xpi/ | sed -n 's/.* href="\(.*\.xpi\)".*/\1/p')
+      for XPI in $XPIS; do
+        wget $SERVER$XPI
+      done
+    override-prime: |
+      INSTALLDIR=$SNAPCRAFT_PRIME/usr/lib/firefox/distribution/extensions
+      mkdir -p $INSTALLDIR
+      for XPI in $(ls $SNAPCRAFT_PART_SRC/*.xpi); do
+        LANGCODE=$(basename $XPI .xpi)
+        cp $XPI $INSTALLDIR/langpack-$LANGCODE@firefox.mozilla.org.xpi
+      done
 
   launcher:
     plugin: nil

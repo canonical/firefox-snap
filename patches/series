@@ -1,1 +1,3 @@
+angle-add-missing-cmath-include.patch
+geckodriver-snap-binary.patch
 fix-ftbfs-newer-cbindgen.patch
