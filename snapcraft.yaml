@@ -345,6 +345,26 @@ parts:
       echo "ac_add_options --with-mozilla-api-keyfile=$SNAPCRAFT_STAGE/mozilla-desktop-geoloc-api.key" >> $MOZCONFIG
     override-prime: ''
 
+  debug-symbols:
+    plugin: nil
+    build-packages:
+      - python3
+      - python3-virtualenv
+    after:
+      - firefox
+    override-pull: |
+      export SYMBOLS_ARCHIVE=$(find $SNAPCRAFT_STAGE/debug-symbols/ -type f -name "firefox-*.crashreporter-symbols.zip")
+      if [ -f "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token" ]; then
+        virtualenv venv/
+        source venv/bin/activate
+        venv/bin/pip3 install redo requests argparse
+        SOCORRO_SYMBOL_UPLOAD_URL=https://symbols.mozilla.org/upload/ SOCORRO_SYMBOL_UPLOAD_TOKEN_FILE="$SNAPCRAFT_PROJECT_DIR/symbols-upload-token" venv/bin/python3 $SNAPCRAFT_STAGE/debug-symbols/upload_symbols.py $SYMBOLS_ARCHIVE
+        rm "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token"
+        deactivate
+      else
+        cp $SYMBOLS_ARCHIVE $SNAPCRAFT_PROJECT_DIR/$SNAPCRAFT_PROJECT_NAME_$SNAPCRAFT_PROJECT_VERSION_$SNAP_ARCH.debug
+      fi
+
 slots:
   dbus-daemon:
     interface: dbus
