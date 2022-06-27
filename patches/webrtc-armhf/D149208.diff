@@ -1,0 +1,156 @@
+diff --git a/python/mozbuild/mozbuild/gn_processor.py b/python/mozbuild/mozbuild/gn_processor.py
+--- a/python/mozbuild/mozbuild/gn_processor.py
++++ b/python/mozbuild/mozbuild/gn_processor.py
+@@ -150,11 +150,11 @@
+             if dep not in all_deps:
+                 queue.append(dep)
+     return all_deps
+ 
+ 
+-def filter_gn_config(gn_result, config, sandbox_vars, input_vars, gn_target):
++def filter_gn_config(gn_result, sandbox_vars, input_vars, gn_target):
+     # Translates the raw output of gn into just what we'll need to generate a
+     # mozbuild configuration.
+     gn_out = {"targets": {}, "sandbox_vars": sandbox_vars, "gn_gen_args": input_vars}
+ 
+     cpus = {
+@@ -203,22 +203,22 @@
+ 
+     return gn_out
+ 
+ 
+ def process_gn_config(
+-    gn_config, srcdir, config, output, non_unified_sources, sandbox_vars, mozilla_flags
++    gn_config, topsrcdir, srcdir, non_unified_sources, sandbox_vars, mozilla_flags
+ ):
+     # Translates a json gn config into attributes that can be used to write out
+     # moz.build files for this configuration.
+ 
+     # Much of this code is based on similar functionality in `gyp_reader.py`.
+ 
+     mozbuild_attrs = {"mozbuild_args": gn_config.get("mozbuild_args", None), "dirs": {}}
+ 
+     targets = gn_config["targets"]
+ 
+-    project_relsrcdir = mozpath.relpath(srcdir, config.topsrcdir)
++    project_relsrcdir = mozpath.relpath(srcdir, topsrcdir)
+ 
+     non_unified_sources = set([mozpath.normpath(s) for s in non_unified_sources])
+ 
+     def target_info(fullname):
+         path, name = target_fullname.split(":")
+@@ -291,11 +291,11 @@
+             # the project indicated by "//".
+             if include.startswith("//"):
+                 include = include[2:]
+             # moz.build expects all LOCAL_INCLUDES to exist, so ensure they do.
+             if include.startswith("/"):
+-                resolved = mozpath.abspath(mozpath.join(config.topsrcdir, include[1:]))
++                resolved = mozpath.abspath(mozpath.join(topsrcdir, include[1:]))
+             else:
+                 resolved = mozpath.abspath(mozpath.join(srcdir, include))
+             if not os.path.exists(resolved):
+                 # GN files may refer to include dirs that are outside of the
+                 # tree or we simply didn't vendor. Print a warning in this case.
+@@ -437,13 +437,12 @@
+ 
+     return common_attrs
+ 
+ 
+ def write_mozbuild(
+-    config,
++    topsrcdir,
+     srcdir,
+-    output,
+     non_unified_sources,
+     gn_config_files,
+     mozilla_flags,
+     write_mozbuild_variables,
+ ):
+@@ -453,13 +452,12 @@
+     for path in sorted(gn_config_files):
+         with open(path, "r") as fh:
+             gn_config = json.load(fh)
+             mozbuild_attrs = process_gn_config(
+                 gn_config,
++                topsrcdir,
+                 srcdir,
+-                config,
+-                output,
+                 non_unified_sources,
+                 gn_config["sandbox_vars"],
+                 mozilla_flags,
+             )
+             all_mozbuild_results.append(mozbuild_attrs)
+@@ -472,11 +470,11 @@
+         dirs = config_attrs["dirs"]
+         for d, build_data in dirs.items():
+             configs_by_dir[d].append((mozbuild_args, build_data))
+ 
+     for relsrcdir, configs in sorted(configs_by_dir.items()):
+-        target_srcdir = mozpath.join(config.topsrcdir, relsrcdir)
++        target_srcdir = mozpath.join(topsrcdir, relsrcdir)
+         mkdir(target_srcdir)
+ 
+         target_mozbuild = mozpath.join(target_srcdir, "moz.build")
+         with open(target_mozbuild, "w") as fh:
+             mb = MozbuildWriter(fh)
+@@ -570,14 +568,12 @@
+                     if cond:
+                         mb.terminate_condition()
+ 
+ 
+ def generate_gn_config(
+-    config,
+     srcdir,
+     output,
+-    non_unified_sources,
+     gn_binary,
+     input_variables,
+     sandbox_variables,
+     gn_target,
+ ):
+@@ -630,11 +626,11 @@
+     gn_config_file = mozpath.join(out_dir, "project.json")
+ 
+     with open(gn_config_file, "r") as fh:
+         gn_out = json.load(fh)
+         gn_out = filter_gn_config(
+-            gn_out, config, sandbox_variables, input_variables, gn_target
++            gn_out, sandbox_variables, input_variables, gn_target
+         )
+ 
+     os.remove(gn_config_file)
+ 
+     gn_out_file = mozpath.join(out_dir, gn_arg_string + ".json")
+@@ -678,14 +674,12 @@
+                                 vars["use_x11"] = True
+                             vars_set.append(vars)
+ 
+             for vars in vars_set:
+                 generate_gn_config(
+-                    obj.config,
+                     mozpath.join(obj.srcdir, obj.target_dir),
+                     mozpath.join(obj.objdir, obj.target_dir),
+-                    obj.non_unified_sources,
+                     gn_binary,
+                     vars,
+                     obj.gn_sandbox_variables,
+                     obj.gn_target,
+                 )
+@@ -712,13 +706,12 @@
+                 print(
+                     "Writing moz.build files based on the following gn configs: %s"
+                     % gn_config_files
+                 )
+                 write_mozbuild(
+-                    obj.config,
++                    obj.config.topsrcdir,
+                     mozpath.join(obj.srcdir, obj.target_dir),
+-                    mozpath.join(obj.objdir, obj.target_dir),
+                     obj.non_unified_sources,
+                     gn_config_files,
+                     obj.mozilla_flags,
+                     obj.write_mozbuild_variables,
+                 )
+

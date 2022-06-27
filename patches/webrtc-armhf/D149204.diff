@@ -1,0 +1,92 @@
+diff --git a/taskcluster/ci/toolchain/gn.yml b/taskcluster/ci/toolchain/gn.yml
+--- a/taskcluster/ci/toolchain/gn.yml
++++ b/taskcluster/ci/toolchain/gn.yml
+@@ -2,15 +2,15 @@
+ # License, v. 2.0. If a copy of the MPL was not distributed with this
+ # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ ---
+ job-defaults:
+     description: "gn toolchain build"
++    attributes:
++        local-toolchain: true
+     worker-type: b-linux
+     worker:
+         max-run-time: 1800
+-    run-on-projects:
+-        - trunk
+     run:
+         resources:
+             - 'taskcluster/scripts/misc/build-gn-common.sh'
+         toolchain-artifact: public/build/gn.tar.zst
+     fetches:
+@@ -26,10 +26,11 @@
+ macosx64-gn:
+     treeherder:
+         symbol: TM(gn)
+     run:
+         script: build-gn-macosx.sh
++        toolchain-alias: macosx64-aarch64-gn
+     fetches:
+         toolchain:
+             - linux64-cctools-port
+             - linux64-clang-toolchain
+             - macosx64-sdk-11.0
+diff --git a/taskcluster/scripts/misc/build-gn-common.sh b/taskcluster/scripts/misc/build-gn-common.sh
+--- a/taskcluster/scripts/misc/build-gn-common.sh
++++ b/taskcluster/scripts/misc/build-gn-common.sh
+@@ -30,7 +30,7 @@
+ if test "$MAC_CROSS" = "" -a "$(uname)" = "Linux"; then
+     strip out/gn
+ fi
+ cp out/gn $STAGE
+ 
+-tar -c $STAGE | python3 $GECKO_PATH/taskcluster/scripts/misc/zstdpy > gn.tar.$COMPRESS_EXT
+-cp gn.tar.$COMPRESS_EXT $UPLOAD_DIR
++tar -c $STAGE | python3 $GECKO_PATH/taskcluster/scripts/misc/zstdpy > gn.tar.zst
++cp gn.tar.zst $UPLOAD_DIR
+diff --git a/taskcluster/scripts/misc/build-gn-linux.sh b/taskcluster/scripts/misc/build-gn-linux.sh
+--- a/taskcluster/scripts/misc/build-gn-linux.sh
++++ b/taskcluster/scripts/misc/build-gn-linux.sh
+@@ -2,11 +2,10 @@
+ set -e -v
+ 
+ # This script is for building GN on Linux.
+ 
+ WORKSPACE=$HOME/workspace
+-COMPRESS_EXT=zst
+ export CC=gcc
+ export CXX=g++
+ export LDFLAGS=-lrt
+ 
+ # Gn build scripts use #!/usr/bin/env python, which will be python 2.6 on
+diff --git a/taskcluster/scripts/misc/build-gn-macosx.sh b/taskcluster/scripts/misc/build-gn-macosx.sh
+--- a/taskcluster/scripts/misc/build-gn-macosx.sh
++++ b/taskcluster/scripts/misc/build-gn-macosx.sh
+@@ -2,11 +2,10 @@
+ set -e -v
+ 
+ # This script is for building GN.
+ 
+ WORKSPACE=$HOME/workspace
+-COMPRESS_EXT=zst
+ 
+ CROSS_CCTOOLS_PATH=$MOZ_FETCHES_DIR/cctools
+ CROSS_SYSROOT=$MOZ_FETCHES_DIR/MacOSX11.0.sdk
+ export MACOSX_DEPLOYMENT_TARGET=10.12
+ 
+diff --git a/taskcluster/scripts/misc/build-gn-win64.sh b/taskcluster/scripts/misc/build-gn-win64.sh
+--- a/taskcluster/scripts/misc/build-gn-win64.sh
++++ b/taskcluster/scripts/misc/build-gn-win64.sh
+@@ -2,11 +2,10 @@
+ set -e -v -x
+ 
+ # This script is for building GN on Windows.
+ 
+ UPLOAD_DIR=$PWD/public/build
+-COMPRESS_EXT=bz2
+ 
+ cd $GECKO_PATH
+ 
+ export PATH="$(cd $MOZ_FETCHES_DIR && pwd)/ninja/bin:$PATH"
+ export PATH="$(cd $MOZ_FETCHES_DIR && pwd)/mingw64/bin:$PATH"
+
