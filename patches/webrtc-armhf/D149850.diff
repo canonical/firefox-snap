@@ -1,0 +1,40 @@
+diff --git a/python/mozbuild/mozbuild/gn_processor.py b/python/mozbuild/mozbuild/gn_processor.py
+--- a/python/mozbuild/mozbuild/gn_processor.py
++++ b/python/mozbuild/mozbuild/gn_processor.py
+@@ -173,11 +173,10 @@
+     }
+ 
+     mozbuild_args = {
+         "MOZ_DEBUG": "1" if input_vars.get("is_debug") else None,
+         "OS_TARGET": oses[input_vars["target_os"]],
+-        "HOST_CPU_ARCH": cpus.get(input_vars["host_cpu"], input_vars["host_cpu"]),
+         "CPU_ARCH": cpus.get(input_vars["target_cpu"], input_vars["target_cpu"]),
+     }
+     if "use_x11" in input_vars:
+         mozbuild_args["MOZ_X11"] = "1" if input_vars["use_x11"] else None
+ 
+@@ -504,20 +503,22 @@
+             all_args = [args for args, _ in configs]
+ 
+             # Start with attributes that will be a part of the mozconfig
+             # for every configuration, then factor by other potentially useful
+             # combinations.
++            # FIXME: this is a time-bomb. See bug 1775202.
+             for attrs in (
+                 (),
+                 ("MOZ_DEBUG",),
+                 ("OS_TARGET",),
+                 ("CPU_ARCH",),
+                 ("MOZ_DEBUG", "OS_TARGET"),
+                 ("OS_TARGET", "MOZ_X11"),
+                 ("OS_TARGET", "CPU_ARCH"),
++                ("OS_TARGET", "CPU_ARCH", "MOZ_X11"),
+                 ("OS_TARGET", "CPU_ARCH", "MOZ_DEBUG"),
+-                ("MOZ_DEBUG", "OS_TARGET", "CPU_ARCH", "HOST_CPU_ARCH"),
++                ("OS_TARGET", "CPU_ARCH", "MOZ_DEBUG", "MOZ_X11"),
+             ):
+                 conditions = set()
+                 for args in all_args:
+                     cond = tuple(((k, args.get(k) or "") for k in attrs))
+                     conditions.add(cond)
+

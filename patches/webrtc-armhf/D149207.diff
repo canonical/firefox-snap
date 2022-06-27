@@ -1,0 +1,17 @@
+diff --git a/python/mozbuild/mozbuild/gn_processor.py b/python/mozbuild/mozbuild/gn_processor.py
+--- a/python/mozbuild/mozbuild/gn_processor.py
++++ b/python/mozbuild/mozbuild/gn_processor.py
+@@ -621,11 +621,11 @@
+             for k in sorted(input_variables.keys())
+             if k != "use_x11" or input_variables["target_os"] != "openbsd"
+         ]
+     )
+     out_dir = mozpath.join(output, "gn-output")
+-    gen_args = [config.substs["GN"], "gen", out_dir, gn_args, "--ide=json"]
++    gen_args = [gn_binary, "gen", out_dir, gn_args, "--ide=json"]
+     print('Running "%s"' % " ".join(gen_args), file=sys.stderr)
+     subprocess.check_call(gen_args, cwd=srcdir, stderr=subprocess.STDOUT)
+ 
+     gn_config_file = mozpath.join(out_dir, "project.json")
+ 
+
