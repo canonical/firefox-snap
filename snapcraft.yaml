@@ -73,7 +73,7 @@ parts:
     plugin: nil
     after:
       - rust
-    override-build: $HOME/.cargo/bin/cargo install cbindgen
+    override-build: $HOME/.cargo/bin/cargo install --locked cbindgen
     override-prime: ''
 
   clang:
