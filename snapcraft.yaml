@@ -95,6 +95,26 @@ parts:
       wget -O - $ROOT$SUFFIX | tar -x --xz --strip-components=1
     override-prime: ''
 
+  dump-syms:
+    plugin: nil
+    after:
+      - rust
+    build-packages:
+      - curl
+      - git
+      - python3-yaml
+    override-pull: |
+      ROOT=https://ftp.mozilla.org/pub/firefox/nightly/latest-mozilla-central
+      REVISION=$(wget -O - $ROOT/firefox-$SNAPCRAFT_PROJECT_VERSION.en-US.linux-x86_64.txt | tail -1 | sed -n "s#^.*\/rev/\(.*\)\$#\1#p")
+      FETCHES=https://hg.mozilla.org/mozilla-central/raw-file/${REVISION}/taskcluster/ci/fetch/toolchains.yml
+      TOOLCHAINS=$(curl -sSL "${FETCHES}")
+      REPO=$(echo "${TOOLCHAINS}" | python3 -c 'import yaml, sys; fetches = yaml.safe_load(sys.stdin); print("{}".format(fetches["dump-syms"]["fetch"]["repo"]))')
+      SHA1=$(echo "${TOOLCHAINS}" | python3 -c 'import yaml, sys; fetches = yaml.safe_load(sys.stdin); print("{}".format(fetches["dump-syms"]["fetch"]["revision"]))')
+      git clone "${REPO}" . && git checkout "${SHA1}"
+    override-build: |
+      $HOME/.cargo/bin/cargo build --release
+      cp target/release/dump_syms $SNAPCRAFT_STAGE/usr/bin/
+
   wasi-sdk:
     plugin: nil
     after:
@@ -147,6 +167,7 @@ parts:
       - cbindgen
       - clang
       - distribution
+      - dump-syms
       - ffmpeg
       - firefox-langpacks
       - nodejs
