@@ -320,7 +320,8 @@ parts:
       mkdir -p $INSTALLDIR
       for XPI in $(ls $SNAPCRAFT_PART_SRC/*.xpi); do
         LANGCODE=$(basename $XPI .xpi)
-        cp $XPI $INSTALLDIR/langpack-$LANGCODE@firefox.mozilla.org.xpi
+        mkdir $INSTALLDIR/locale-$LANGCODE
+        cp $XPI $INSTALLDIR/locale-$LANGCODE/langpack-$LANGCODE@firefox.mozilla.org.xpi
       done
 
   launcher:

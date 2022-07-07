@@ -1,6 +1,7 @@
 angle-add-missing-cmath-include.patch
 geckodriver-snap-binary.patch
 fix-ftbfs-newer-cbindgen.patch
+upstream-D151052.patch
 
 # https://bugzilla.mozilla.org/show_bug.cgi?id=1773223
 webrtc-armhf/D149203.diff
