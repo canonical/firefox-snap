@@ -198,6 +198,9 @@ parts:
       MACH="env -u LD_LIBRARY_PATH -u PYTHONPATH /usr/bin/python3 ./mach"
       $MACH configure --prefix=$SNAPCRAFT_PART_INSTALL/usr
       $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
+      find . -name 'dep-graph.bin' -delete
+      find . -name 'query-cache.bin' -delete
+      find . -name 'work-products.bin' -delete
       $MACH install
       DISTRIBUTION=$SNAPCRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
