@@ -90,10 +90,9 @@ parts:
       elif [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
         SUFFIX=aarch64-linux-gnu.tar.xz
       fi
-      wget -O - $ROOT$SUFFIX | tar -x --xz --strip-components=1
-    override-build: |
       mkdir -p $SNAPCRAFT_STAGE/usr
-      cp -R * $SNAPCRAFT_STAGE/usr/
+      cd $SNAPCRAFT_STAGE/usr
+      wget -O - $ROOT$SUFFIX | tar -x --xz --strip-components=1
     override-prime: ''
 
   dump-syms:
