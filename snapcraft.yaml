@@ -204,6 +204,7 @@ parts:
       mkdir -p $SNAPCRAFT_STAGE/debug-symbols/
       cp toolkit/crashreporter/tools/upload_symbols.py $SNAPCRAFT_STAGE/debug-symbols/
     override-build: |
+      rm -rf $SNAPCRAFT_PART_SRC/*
       export PATH=$HOME/.cargo/bin:$PATH
       QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
