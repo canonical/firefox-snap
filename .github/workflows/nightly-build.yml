@@ -21,11 +21,6 @@ jobs:
       - name: Extract current version
         id: extract-current-version
         run: ./.github/scripts/extract-current-version.sh
-      - name: Set Mozilla debug symbols token
-        id: moz-dbgsymup-token
-        env:
-          MOZ_DBGSYMUP_TOKEN: ${{ secrets.MOZ_DBGSYMUP_TOKEN }}
-        run: ./.github/scripts/moz-dbgsymup-token.sh
       - uses: snapcore/action-build@v1
         id: build-new-snap-nightly
       - uses: snapcore/action-publish@master
