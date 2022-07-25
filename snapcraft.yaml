@@ -91,17 +91,26 @@ parts:
     plugin: nil
     build-packages:
       - wget
-    override-pull: wget -O rustup.sh https://sh.rustup.rs
-    override-build: |
+    override-pull: |
+      # Do not use rustup to work around https://forum.snapcraft.io/t/armhf-builds-on-launchpad-timing-out/31008
       REQUIRED_RUST_VERSION=1.61.0
-      sh rustup.sh -q -y --default-toolchain $REQUIRED_RUST_VERSION
+      ROOT=https://static.rust-lang.org/dist/rust-$REQUIRED_RUST_VERSION
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        BINARIES_SUFFIX=x86_64-unknown-linux-gnu
+      elif [ $SNAPCRAFT_TARGET_ARCH = "armhf" ]; then
+        BINARIES_SUFFIX=armv7-unknown-linux-gnueabihf
+      elif [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
+        BINARIES_SUFFIX=aarch64-unknown-linux-gnu
+      fi
+      wget -O - $ROOT-$BINARIES_SUFFIX.tar.gz | tar -x -z --strip-components=1
+      ./install.sh --prefix=/usr --destdir=$SNAPCRAFT_STAGE
     override-prime: ''
 
   cbindgen:
     plugin: nil
     after:
       - rust
-    override-build: $HOME/.cargo/bin/cargo install cbindgen
+    override-build: cargo install cbindgen
     override-prime: ''
 
   clang:
@@ -225,7 +234,6 @@ parts:
       ROOT=https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD
       wget -O - $ROOT/source/firefox-$VERSION.source.tar.xz | tar -x --xz --strip-components=1
     override-build: |
-      export PATH=$HOME/.cargo/bin:$PATH
       QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
