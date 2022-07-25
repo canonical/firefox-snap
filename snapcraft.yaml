@@ -62,18 +62,26 @@ parts:
     plugin: nil
     build-packages:
       - wget
-    override-pull: wget -O rustup.sh https://sh.rustup.rs
-    override-build: |
-      # Pin rust version to 1.55.0 because when built with 1.56.0, audio capture doesn't work (https://bugzilla.mozilla.org/1732815)
+    override-pull: |
+      # Do not use rustup to work around https://forum.snapcraft.io/t/armhf-builds-on-launchpad-timing-out/31008
       REQUIRED_RUST_VERSION=1.55.0
-      sh rustup.sh -q -y --default-toolchain $REQUIRED_RUST_VERSION
+      ROOT=https://static.rust-lang.org/dist/rust-$REQUIRED_RUST_VERSION
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        BINARIES_SUFFIX=x86_64-unknown-linux-gnu
+      elif [ $SNAPCRAFT_TARGET_ARCH = "armhf" ]; then
+        BINARIES_SUFFIX=armv7-unknown-linux-gnueabihf
+      elif [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
+        BINARIES_SUFFIX=aarch64-unknown-linux-gnu
+      fi
+      wget -O - $ROOT-$BINARIES_SUFFIX.tar.gz | tar -x -z --strip-components=1
+      ./install.sh --prefix=/usr --destdir=$SNAPCRAFT_STAGE
     override-prime: ''
 
   cbindgen:
     plugin: nil
     after:
       - rust
-    override-build: $HOME/.cargo/bin/cargo install --locked cbindgen
+    override-build: cargo install --locked cbindgen
     override-prime: ''
 
   clang:
@@ -216,7 +224,6 @@ parts:
         git -C lucetc submodule update --init --recursive
       fi
     override-build: |
-      export PATH=$HOME/.cargo/bin:$PATH
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         CC=$SNAPCRAFT_STAGE/usr/bin/clang make -C lucetc build
         export LUCETC=$SNAPCRAFT_PART_BUILD/lucetc/target/release/lucetc
