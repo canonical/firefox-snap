@@ -206,6 +206,14 @@ parts:
       rm -rf $SNAPCRAFT_PART_SRC/*
       export PATH=$HOME/.cargo/bin:$PATH
       QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
+      # GitHub Actions is limited to 2 CPUs, 7GB RAM and too much debug infos
+      # from Rust will make gkrust linkage step fail. Same holds for arm64
+      # builds on Launchpad.
+      # It seems we can't detect $GITHUB_WORKSPACE so we assume presence of the
+      # file "symbols-upload-token" means we are running on GitHub
+      if [ -f "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token" -o $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
+        patch -p1 < $SNAPCRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
+      fi
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
       if [ $SNAPCRAFT_TARGET_ARCH != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
