@@ -95,6 +95,26 @@ parts:
       wget -O - $ROOT$SUFFIX | tar -x --xz --strip-components=1
     override-prime: ''
 
+  dump-syms:
+    plugin: nil
+    after:
+      - rust
+    build-packages:
+      - curl
+      - git
+      - python3-yaml
+    override-pull: |
+      ROOT=https://ftp.mozilla.org/pub/firefox/nightly/latest-mozilla-central
+      REVISION=$(wget -O - $ROOT/firefox-$SNAPCRAFT_PROJECT_VERSION.en-US.linux-x86_64.txt | tail -1 | sed -n "s#^.*\/rev/\(.*\)\$#\1#p")
+      FETCHES=https://hg.mozilla.org/mozilla-central/raw-file/${REVISION}/taskcluster/ci/fetch/toolchains.yml
+      TOOLCHAINS=$(curl -sSL "${FETCHES}")
+      REPO=$(echo "${TOOLCHAINS}" | python3 -c 'import yaml, sys; fetches = yaml.safe_load(sys.stdin); print("{}".format(fetches["dump-syms"]["fetch"]["repo"]))')
+      SHA1=$(echo "${TOOLCHAINS}" | python3 -c 'import yaml, sys; fetches = yaml.safe_load(sys.stdin); print("{}".format(fetches["dump-syms"]["fetch"]["revision"]))')
+      git clone "${REPO}" . && git checkout "${SHA1}"
+    override-build: |
+      $HOME/.cargo/bin/cargo build --release
+      cp target/release/dump_syms $SNAPCRAFT_STAGE/usr/bin/
+
   wasi-sdk:
     plugin: nil
     after:
@@ -147,6 +167,7 @@ parts:
       - cbindgen
       - clang
       - distribution
+      - dump-syms
       - ffmpeg
       - firefox-langpacks
       - nodejs
@@ -156,6 +177,7 @@ parts:
     build-packages:
       - cmake
       - coreutils
+      - file
       - git
       - libasound2-dev
       - libdbus-glib-1-dev
@@ -178,10 +200,20 @@ parts:
       REVISION=$(wget -O - $ROOT/firefox-$SNAPCRAFT_PROJECT_VERSION.en-US.linux-x86_64.txt | tail -1 | sed -n "s#^$REPO/rev/\(.*\)\$#\1#p")
       hg clone $REPO -u $REVISION .
       rm -rf .hg
+      mkdir -p $SNAPCRAFT_STAGE/debug-symbols/
+      cp toolkit/crashreporter/tools/upload_symbols.py $SNAPCRAFT_STAGE/debug-symbols/
     override-build: |
       rm -rf $SNAPCRAFT_PART_SRC/*
       export PATH=$HOME/.cargo/bin:$PATH
       QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
+      # GitHub Actions is limited to 2 CPUs, 7GB RAM and too much debug infos
+      # from Rust will make gkrust linkage step fail. Same holds for arm64
+      # builds on Launchpad.
+      # It seems we can't detect $GITHUB_WORKSPACE so we assume presence of the
+      # file "symbols-upload-token" means we are running on GitHub
+      if [ -f "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token" -o $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
+        patch -p1 < $SNAPCRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
+      fi
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
       if [ $SNAPCRAFT_TARGET_ARCH != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
@@ -201,12 +233,14 @@ parts:
       find . -name 'dep-graph.bin' -delete
       find . -name 'query-cache.bin' -delete
       find . -name 'work-products.bin' -delete
+      DUMP_SYMS=$SNAPCRAFT_STAGE/usr/bin/dump_syms $MACH buildsymbols
       $MACH install
       DISTRIBUTION=$SNAPCRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
       cp taskcluster/docker/firefox-snap/firefox.desktop $SNAPCRAFT_PART_INSTALL/
       cp browser/branding/nightly/default256.png $SNAPCRAFT_PART_INSTALL/
       sed -i 's/\(^Icon=\).*$/\1\/default256.png/' $SNAPCRAFT_PART_INSTALL/firefox.desktop
+      cp obj-*/dist/firefox-*.crashreporter-symbols.zip $SNAPCRAFT_STAGE/debug-symbols/
     stage-packages:
       - libcurl4
       - libpci3
@@ -344,6 +378,26 @@ parts:
       cat apikeys | jq .MOZ_MOZILLA_API_KEY | tr -d '"' > $SNAPCRAFT_PART_INSTALL/mozilla-desktop-geoloc-api.key
       echo "ac_add_options --with-mozilla-api-keyfile=$SNAPCRAFT_STAGE/mozilla-desktop-geoloc-api.key" >> $MOZCONFIG
     override-prime: ''
+
+  debug-symbols:
+    plugin: nil
+    build-packages:
+      - python3
+      - python3-virtualenv
+    after:
+      - firefox
+    override-pull: |
+      export SYMBOLS_ARCHIVE=$(find $SNAPCRAFT_STAGE/debug-symbols/ -type f -name "firefox-*.crashreporter-symbols.zip")
+      if [ -f "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token" ]; then
+        virtualenv venv/
+        source venv/bin/activate
+        venv/bin/pip3 install redo requests argparse
+        SOCORRO_SYMBOL_UPLOAD_URL=https://symbols.mozilla.org/upload/ SOCORRO_SYMBOL_UPLOAD_TOKEN_FILE="$SNAPCRAFT_PROJECT_DIR/symbols-upload-token" venv/bin/python3 $SNAPCRAFT_STAGE/debug-symbols/upload_symbols.py $SYMBOLS_ARCHIVE
+        rm "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token"
+        deactivate
+      else
+        cp $SYMBOLS_ARCHIVE $SNAPCRAFT_PROJECT_DIR/$SNAPCRAFT_PROJECT_NAME_$SNAPCRAFT_PROJECT_VERSION_$SNAP_ARCH.debug
+      fi
 
 slots:
   dbus-daemon:
