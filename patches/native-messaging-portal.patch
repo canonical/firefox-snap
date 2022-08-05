@@ -1,9 +1,9 @@
 # HG changeset patch
 # User Olivier Tilloy <olivier@tilloy.net>
-# Date 1656950750 0
-#      Mon Jul 04 16:05:50 2022 +0000
-# Node ID 3b718de61025dabf96a72066d07e9d99709bf46d
-# Parent  fda4a1bf17aac1a5430143bd8e19d724f70a9a0a
+# Date 1646937457 -3600
+#      Thu Mar 10 19:37:37 2022 +0100
+# Node ID e2f0b11991c5a3b310acb637d0d338f989414af5
+# Parent  4e99353cf3334caf457ee247724f8623e5c38fb6
 Bug 1661935 - Integration with a new WebExtensions XDG desktop portal for native messaging on Linux
 
 Differential Revision: https://phabricator.services.mozilla.com/D140803
@@ -31,7 +31,7 @@ diff --git a/modules/libpref/init/StaticPrefList.yaml b/modules/libpref/init/Sta
 diff --git a/python/mozboot/mozboot/debian.py b/python/mozboot/mozboot/debian.py
 --- a/python/mozboot/mozboot/debian.py
 +++ b/python/mozboot/mozboot/debian.py
-@@ -34,6 +34,7 @@ class DebianBootstrapper(LinuxBootstrapp
+@@ -18,6 +18,7 @@ class DebianBootstrapper(LinuxBootstrapp
          "build-essential",
          "libpython3-dev",
          "m4",
@@ -39,7 +39,7 @@ diff --git a/python/mozboot/mozboot/debian.py b/python/mozboot/mozboot/debian.py
          "unzip",
          "uuid",
          "zip",
-@@ -43,10 +44,12 @@ class DebianBootstrapper(LinuxBootstrapp
+@@ -27,10 +28,12 @@ class DebianBootstrapper(LinuxBootstrapp
      # (browser) for all Debian-derived distros (such as Ubuntu).
      BROWSER_COMMON_PACKAGES = [
          "libasound2-dev",
@@ -68,7 +68,7 @@ diff --git a/python/mozbuild/mozbuild/mozinfo.py b/python/mozbuild/mozbuild/mozi
 diff --git a/python/sites/mach.txt b/python/sites/mach.txt
 --- a/python/sites/mach.txt
 +++ b/python/sites/mach.txt
-@@ -135,3 +135,7 @@ pypi-optional:glean-sdk==50.1.2:telemetr
+@@ -135,3 +135,7 @@ pypi-optional:glean-sdk==50.1.3:telemetr
  # support down to the oldest locally-installed version (5.4.2).
  pypi-optional:psutil>=5.4.2,<=5.8.0:telemetry will be missing some data
  pypi-optional:zstandard>=0.11.1,<=0.17.0:zstd archives will not be possible to extract
@@ -158,7 +158,7 @@ diff --git a/toolkit/components/extensions/NativeMessaging.jsm b/toolkit/compone
    /**
     * Open a connection to a native messaging host.
     * @param {number} portId A unique internal ID that identifies the port.
-@@ -287,6 +345,15 @@ var NativeApp = class extends EventEmitt
+@@ -287,6 +345,18 @@ var NativeApp = class extends EventEmitt
  
      await this.startupPromise;
  
@@ -166,7 +166,10 @@ diff --git a/toolkit/components/extensions/NativeMessaging.jsm b/toolkit/compone
 +      await this.writePromise;
 +      await lazy.portal.closeSession(this.portalSessionHandle).then(_ => {
 +        this.portalSessionHandle = null;
-+        this.proc = null;
++        this.proc.exitCode = 0;
++        this.proc.wait().then(() => {
++          this.proc = null;
++        });
 +      });
 +      return;
 +    }
@@ -1436,8 +1439,8 @@ diff --git a/toolkit/modules/subprocess/subprocess_common.jsm b/toolkit/modules/
 +  static fromRunning(fds) {
 +    let worker = this.getWorker();
 +
-+    return worker.call("connectRunning", [fds]).then(({ fds }) => {
-+      return new this(worker, 0, fds, 0);
++    return worker.call("connectRunning", [fds]).then(({ processId, fds }) => {
++      return new this(worker, processId, fds, 0);
 +    });
 +  }
 +
@@ -1458,6 +1461,22 @@ diff --git a/toolkit/modules/subprocess/subprocess_unix.jsm b/toolkit/modules/su
  };
  
  var SubprocessImpl = SubprocessUnix;
+diff --git a/toolkit/modules/subprocess/subprocess_win.jsm b/toolkit/modules/subprocess/subprocess_win.jsm
+--- a/toolkit/modules/subprocess/subprocess_win.jsm
++++ b/toolkit/modules/subprocess/subprocess_win.jsm
+@@ -188,6 +188,12 @@ var SubprocessWin = {
+     error.errorCode = SubprocessConstants.ERROR_BAD_EXECUTABLE;
+     throw error;
+   },
++
++  connectRunning(fds) {
++    // Not relevant (yet?) on Windows. This is currently used only on Unix
++    // for native messaging through the WebExtensions portal.
++    throw new Error("Not implemented");
++  },
+ };
+ 
+ var SubprocessImpl = SubprocessWin;
 diff --git a/toolkit/modules/subprocess/subprocess_worker_common.js b/toolkit/modules/subprocess/subprocess_worker_common.js
 --- a/toolkit/modules/subprocess/subprocess_worker_common.js
 +++ b/toolkit/modules/subprocess/subprocess_worker_common.js
@@ -1490,12 +1509,12 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_common.js b/toolkit/mo
 +    let options = {};
 +    options.spawn = false;
 +    options.fds = fds;
-+
 +    let process = new Process(options);
++    let processId = process.id;
 +
 +    io.addProcess(process);
 +
-+    return { data: { fds: process.pipes.map(pipe => pipe.id) } };
++    return { data: { processId, fds: process.pipes.map(pipe => pipe.id) } };
 +  },
 +
    kill(processId, force = false) {
@@ -1504,7 +1523,7 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_common.js b/toolkit/mo
 diff --git a/toolkit/modules/subprocess/subprocess_worker_unix.js b/toolkit/modules/subprocess/subprocess_worker_unix.js
 --- a/toolkit/modules/subprocess/subprocess_worker_unix.js
 +++ b/toolkit/modules/subprocess/subprocess_worker_unix.js
-@@ -462,6 +462,21 @@ class Process extends BaseProcess {
+@@ -462,6 +462,22 @@ class Process extends BaseProcess {
    }
  
    /**
@@ -1520,50 +1539,72 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_unix.js b/toolkit/modu
 +    this.pipes.push(new OutputPipe(this, unix.Fd(options.fds[0])));
 +    this.pipes.push(new InputPipe(this, unix.Fd(options.fds[1])));
 +    this.pipes.push(new InputPipe(this, unix.Fd(options.fds[2])));
++    // Not creating a poll fd here, because this process is managed externally.
 +  }
 +
 +  /**
     * Called when input is available on our sentinel file descriptor.
     *
     * @see pollEvents
-@@ -577,7 +592,9 @@ io = {
+@@ -577,7 +593,9 @@ io = {
      let handlers = [
        this.signal,
        ...this.pipes.values(),
 -      ...this.processes.values(),
-+      // Filter out processes with pid 0, because those are managed
-+      // by the webextensions XDG desktop portal, not spawned by us.
-+      ...Array.from(this.processes.values()).filter(p => p.pid > 0),
++      // Filter out processes without a poll fd, because those are managed
++      // externally, not spawned by us.
++      ...Array.from(this.processes.values()).filter(p => p.fd !== undefined),
      ];
  
      handlers = handlers.filter(handler => handler.pollEvents);
+diff --git a/toolkit/modules/subprocess/subprocess_worker_win.js b/toolkit/modules/subprocess/subprocess_worker_win.js
+--- a/toolkit/modules/subprocess/subprocess_worker_win.js
++++ b/toolkit/modules/subprocess/subprocess_worker_win.js
+@@ -605,6 +605,12 @@ class Process extends BaseProcess {
+     libc.CloseHandle(procInfo.hThread);
+   }
+ 
++  connectRunning(options) {
++    // Not relevant (yet?) on Windows. This is currently used only on Unix
++    // for native messaging through the WebExtensions portal.
++    throw new Error("Not implemented");
++  }
++
+   /**
+    * Called when our process handle is signaled as active, meaning the process
+    * has exited.
 diff --git a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js b/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
 --- a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
 +++ b/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
-@@ -879,3 +879,24 @@ add_task(async function test_cleanup() {
+@@ -879,3 +879,29 @@ add_task(async function test_cleanup() {
    equal(openFiles.size, 0, "No remaining open files");
    equal(processes.size, 0, "No remaining processes");
  });
 +
 +add_task(async function test_subprocess_connectRunning() {
-+  let proc = await Subprocess.connectRunning([42, 58, 63]);
-+  equal(proc.id, 0, "Already running process id is 0");
-+  equal(proc.pid, 0, "Already running process pid is 0");
-+  greater(
-+    proc.stdin.id,
-+    0,
-+    "File descriptor (stdin) for already running process is valid"
-+  );
-+  greater(
-+    proc.stdout.id,
-+    0,
-+    "File descriptor (stdout) for already running process is valid"
-+  );
-+  greater(
-+    proc.stderr.id,
-+    0,
-+    "File descriptor (stderr) for already running process is valid"
-+  );
++  let fds = [42, 58, 63];
++  if (AppConstants.platform != "win") {
++    let proc = await Subprocess.connectRunning(fds);
++    equal(proc.id, 0, "Already running process id is 0");
++    equal(proc.pid, 0, "Already running process pid is 0");
++    greater(
++      proc.stdin.id,
++      0,
++      "File descriptor (stdin) for already running process is valid"
++    );
++    greater(
++      proc.stdout.id,
++      0,
++      "File descriptor (stdout) for already running process is valid"
++    );
++    greater(
++      proc.stderr.id,
++      0,
++      "File descriptor (stderr) for already running process is valid"
++    );
++  } else {
++    Assert.throws(() => Subprocess.connectRunning(fds), /Not implemented/);
++  }
 +});
 diff --git a/widget/gtk/WidgetUtilsGtk.cpp b/widget/gtk/WidgetUtilsGtk.cpp
 --- a/widget/gtk/WidgetUtilsGtk.cpp
