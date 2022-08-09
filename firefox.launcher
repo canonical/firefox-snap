@@ -14,16 +14,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-REALHOME=$(getent passwd $(id -u) | cut -d ':' -f 6)
-
 # When running the snap for the first time, try and locate an existing
-# firefox config in $HOME/.mozilla/firefox, and import it.
+# firefox config in $SNAP_REAL_HOME/.mozilla/firefox, and import it.
 # This requires the personal-files plug to be connected.
 # This is a stopgap measure until proper profile migration is implemented
 # in firefox (see https://bugzilla.mozilla.org/1730530).
 DOTMOZILLA="$SNAP_USER_COMMON/.mozilla"
 if [ ! -d "$DOTMOZILLA" ]; then
-  FIREFOX_CONFIG="$REALHOME/.mozilla/firefox"
+  FIREFOX_CONFIG="$SNAP_REAL_HOME/.mozilla/firefox"
   cat "$FIREFOX_CONFIG/profiles.ini" >/dev/null 2>&1
   if [ "$?" -eq "0" ]; then
     SIZE=$(du -sb $FIREFOX_CONFIG | cut -f 1)
