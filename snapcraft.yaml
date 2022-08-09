@@ -5,6 +5,8 @@ description:  Firefox is a powerful, extensible web browser with support for mod
 confinement: strict
 grade: stable
 base: core20
+assumes:
+  - snapd2.55 # for the cups interface
 compression: lzo
 
 apps:
@@ -27,7 +29,7 @@ apps:
       - avahi-observe
       - browser-sandbox
       - camera
-      - cups-control
+      - cups
       - gsettings
       - hardware-observe
       - home
@@ -53,7 +55,7 @@ apps:
       - avahi-observe
       - browser-sandbox
       - camera
-      - cups-control
+      - cups
       - gsettings
       - hardware-observe
       - home
@@ -81,6 +83,11 @@ plugs:
   etc-firefox-policies:
     interface: system-files
     read: [/etc/firefox/policies]
+  foo-install-cups:
+    interface: content
+    content: foo
+    default-provider: cups
+    target: $SNAP_DATA/foo
 
 layout:
   /usr/share/libdrm:
