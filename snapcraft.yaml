@@ -169,19 +169,23 @@ parts:
       - jq
       - python3-yaml
     override-pull: |
-      VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
-      BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
-      FFINFO=$(curl -s https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD/linux-x86_64/en-US/firefox-$VERSION.json)
-      MOZ_SOURCE_REPO=$(echo $FFINFO | jq -r .moz_source_repo)
-      MOZ_SOURCE_STAMP=$(echo $FFINFO | jq -r .moz_source_stamp)
-      FETCHES=$MOZ_SOURCE_REPO/raw-file/$MOZ_SOURCE_STAMP/taskcluster/ci/fetch/toolchains.yml
-      TOOLCHAINS=$(curl -sSL "${FETCHES}")
-      REPO=$(echo "${TOOLCHAINS}" | python3 -c 'import yaml, sys; fetches = yaml.safe_load(sys.stdin); print("{}".format(fetches["dump-syms"]["fetch"]["repo"]))')
-      SHA1=$(echo "${TOOLCHAINS}" | python3 -c 'import yaml, sys; fetches = yaml.safe_load(sys.stdin); print("{}".format(fetches["dump-syms"]["fetch"]["revision"]))')
-      git clone "${REPO}" . && git checkout "${SHA1}"
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
+        BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
+        FFINFO=$(curl -s https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD/linux-x86_64/en-US/firefox-$VERSION.json)
+        MOZ_SOURCE_REPO=$(echo $FFINFO | jq -r .moz_source_repo)
+        MOZ_SOURCE_STAMP=$(echo $FFINFO | jq -r .moz_source_stamp)
+        FETCHES=$MOZ_SOURCE_REPO/raw-file/$MOZ_SOURCE_STAMP/taskcluster/ci/fetch/toolchains.yml
+        TOOLCHAINS=$(curl -sSL "${FETCHES}")
+        REPO=$(echo "${TOOLCHAINS}" | python3 -c 'import yaml, sys; fetches = yaml.safe_load(sys.stdin); print("{}".format(fetches["dump-syms"]["fetch"]["repo"]))')
+        SHA1=$(echo "${TOOLCHAINS}" | python3 -c 'import yaml, sys; fetches = yaml.safe_load(sys.stdin); print("{}".format(fetches["dump-syms"]["fetch"]["revision"]))')
+        git clone "${REPO}" . && git checkout "${SHA1}"
+      fi
     override-build: |
-      cargo build --release
-      cp target/release/dump_syms $SNAPCRAFT_STAGE/usr/bin/
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        cargo build --release
+        cp target/release/dump_syms $SNAPCRAFT_STAGE/usr/bin/
+      fi
 
   wasi-sdk:
     plugin: nil
@@ -271,6 +275,19 @@ parts:
     override-build: |
       QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
       export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
+      BUILD_DBGSYMS=false
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        # Build and publish debug symbols for amd64 only, because Launchpad
+        # builders for other architectures (armhf and arm64) choke (OOM) when
+        # building with debug symbols enabled.
+        # TODO: find a way to work around this infrastructure limitation.
+        BUILD_DBGSYMS=true
+      fi
+      if [ $BUILD_DBGSYMS = "true" ]; then
+        echo "ac_add_options --enable-debug-symbols" >> $MOZCONFIG
+      else
+        echo "ac_add_options --disable-debug-symbols" >> $MOZCONFIG
+      fi
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         # Enable LTO and PGO (https://firefox-source-docs.mozilla.org/build/buildsystem/pgo.html) only on amd64 for now.
         # Linking with gold fails on armhf (error: undefined reference to '__aeabi_uldivmod') and would need to be
@@ -306,7 +323,9 @@ parts:
       else
         $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
       fi
-      DUMP_SYMS=$SNAPCRAFT_STAGE/usr/bin/dump_syms $MACH buildsymbols
+      if [ $BUILD_DBGSYMS = "true" ]; then
+        DUMP_SYMS=$SNAPCRAFT_STAGE/usr/bin/dump_syms $MACH buildsymbols
+      fi
       $MACH install
       cp obj-*/dist/bin/geckodriver $SNAPCRAFT_PART_INSTALL/usr/lib/firefox/
       DISTRIBUTION=$SNAPCRAFT_PART_INSTALL/usr/lib/firefox/distribution
@@ -314,7 +333,9 @@ parts:
       cp taskcluster/docker/firefox-snap/firefox.desktop $SNAPCRAFT_PART_INSTALL/
       cp browser/branding/official/default256.png $SNAPCRAFT_PART_INSTALL/
       sed -i 's/\(^Icon=\).*$/\1\/default256.png/' $SNAPCRAFT_PART_INSTALL/firefox.desktop
-      cp obj-*/dist/firefox-*.crashreporter-symbols.zip $SNAPCRAFT_STAGE/debug-symbols/
+      if [ $BUILD_DBGSYMS = "true" ]; then
+        cp obj-*/dist/firefox-*.crashreporter-symbols.zip $SNAPCRAFT_STAGE/debug-symbols/
+      fi
     stage-packages:
       - libcurl4
       - libpci3
@@ -466,15 +487,17 @@ parts:
       - firefox
     override-pull: |
       export SYMBOLS_ARCHIVE=$(find $SNAPCRAFT_STAGE/debug-symbols/ -type f -name "firefox-*.crashreporter-symbols.zip")
-      if [ -f "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token" ]; then
-        virtualenv venv/
-        source venv/bin/activate
-        venv/bin/pip3 install redo requests argparse
-        SOCORRO_SYMBOL_UPLOAD_URL=https://symbols.stage.mozaws.net/upload/ SOCORRO_SYMBOL_UPLOAD_TOKEN_FILE="$SNAPCRAFT_PROJECT_DIR/symbols-upload-token" venv/bin/python3 $SNAPCRAFT_STAGE/debug-symbols/upload_symbols.py $SYMBOLS_ARCHIVE
-        rm "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token"
-        deactivate
-      else
-        cp $SYMBOLS_ARCHIVE $SNAPCRAFT_PROJECT_DIR/$SNAPCRAFT_PROJECT_NAME_$SNAPCRAFT_PROJECT_VERSION_$SNAPCRAFT_TARGET_ARCH.debug
+      if [ -f "$SYMBOLS_ARCHIVE" ]; then
+        if [ -f "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token" ]; then
+          virtualenv venv/
+          source venv/bin/activate
+          venv/bin/pip3 install redo requests argparse
+          SOCORRO_SYMBOL_UPLOAD_URL=https://symbols.stage.mozaws.net/upload/ SOCORRO_SYMBOL_UPLOAD_TOKEN_FILE="$SNAPCRAFT_PROJECT_DIR/symbols-upload-token" venv/bin/python3 $SNAPCRAFT_STAGE/debug-symbols/upload_symbols.py $SYMBOLS_ARCHIVE
+          rm "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token"
+          deactivate
+        else
+          cp $SYMBOLS_ARCHIVE $SNAPCRAFT_PROJECT_DIR/$SNAPCRAFT_PROJECT_NAME_$SNAPCRAFT_PROJECT_VERSION_$SNAPCRAFT_TARGET_ARCH.debug
+        fi
       fi
 
 slots:
