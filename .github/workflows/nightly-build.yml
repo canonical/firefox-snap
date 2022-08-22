@@ -23,7 +23,7 @@ jobs:
         run: ./.github/scripts/extract-current-version.sh
       - uses: snapcore/action-build@v1
         id: build-new-snap-nightly
-      - uses: snapcore/action-publish@master
+      - uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPSTORE_LOGIN }}
         with:
