@@ -5,6 +5,8 @@ description:  Firefox is a powerful, extensible web browser with support for mod
 confinement: strict
 grade: stable
 base: core20
+assumes:
+  - snapd2.46 # for $SNAP_REAL_HOME
 compression: lzo
 
 apps:
