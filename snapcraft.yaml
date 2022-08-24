@@ -7,12 +7,16 @@ grade: stable
 base: core20
 compression: lzo
 
+assumes:
+  - snapd2.54 # for mount-control
+
 apps:
   firefox:
     command: firefox.launcher
     desktop: firefox.desktop
     extensions: [gnome-3-38]
     environment:
+      DICPATH: "$SNAP_COMMON/snap-hunspell"
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: "$SNAP/usr/share/pipewire/pipewire.conf"
@@ -31,6 +35,7 @@ apps:
       - gsettings
       - hardware-observe
       - home
+      - host-hunspell
       - joystick
       - network
       - network-observe
@@ -52,6 +57,17 @@ plugs:
   etc-firefox-policies:
     interface: system-files
     read: [/etc/firefox/policies]
+  hunspell-dictionaries:
+    interface: content
+    default-provider: hunspell-dictionaries-1-7-2004
+    target: $SNAP/usr/share/hunspell
+  host-hunspell:
+    interface: mount-control
+    mount:
+    - what: /usr/share/hunspell
+      where: $SNAP_COMMON/host-hunspell
+      persistent: true
+      options: [ro, bind, noatime, noexec]
 
 layout:
   /usr/share/libdrm:
