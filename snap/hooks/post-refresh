@@ -1,0 +1,22 @@
+#!/bin/sh
+
+if [ ! -d $SNAP_COMMON/host-hunspell ]; then
+  echo "No host-hunspell, skipping"
+  exit 0
+fi;
+DICPATH=$SNAP_COMMON/snap-hunspell
+
+if [ -d $DICPATH ]; then
+  # Cleanup on each refresh, ensure we have uptodate content
+  find $DICPATH -type l -name "*.dic" -or -name "*.aff" | xargs rm
+else
+  mkdir -p $DICPATH
+fi
+
+for dic in $(find $SNAP_COMMON/host-hunspell/ -name "*.dic");
+do
+  dic_file=$(basename $dic)
+  aff_file="${dic_file%%.dic}.aff"
+  ln -s $SNAP/usr/share/hunspell/${dic_file} $DICPATH/${dic_file}
+  ln -s $SNAP/usr/share/hunspell/${aff_file} $DICPATH/${aff_file}
+done;
