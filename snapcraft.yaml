@@ -43,6 +43,7 @@ apps:
       PIPEWIRE_CONFIG_NAME: "$SNAP/usr/share/pipewire/pipewire.conf"
       PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/pipewire-0.3"
       SPA_PLUGIN_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/spa-0.2"
+      SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
     slots:
       - dbus-daemon
       - mpris
@@ -445,6 +446,7 @@ parts:
       - libpipewire-0.3-0
       - libpipewire-0.3-modules
       - libspa-0.2-modules
+      - libspeechd2
       - libxt6
       - pipewire-bin
       - pipewire-pulse
@@ -470,6 +472,7 @@ parts:
       - usr/lib/*/libroken.so.*
       - usr/lib/*/librtmp.so.*
       - usr/lib/*/libsasl2.so.*
+      - usr/lib/*/libspeechd.so.*
       - usr/lib/*/libssh.so.*
       - usr/lib/*/libssl.so.*
       - usr/lib/*/libwind.so.*
