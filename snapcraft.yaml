@@ -158,6 +158,12 @@ parts:
       cp -R node-$NODEJS_RELEASE-linux-*/ $SNAPCRAFT_PART_INSTALL/usr/
     override-prime: ''
 
+  mozconfig:
+    plugin: nil
+    override-stage: |
+      cp $SNAPCRAFT_PROJECT_DIR/mozconfig.in $SNAPCRAFT_STAGE/mozconfig
+    override-prime: ''
+
   # Launchpad builders have a timeout for how long they are allowed to access
   # the internet (through a proxy) starting from the start of the build.
   # Since the firefox part takes a long time to build, we need to ensure
@@ -174,6 +180,7 @@ parts:
       - dump-syms
       - ffmpeg
       - firefox-langpacks
+      - mozconfig
       - nodejs
       - pipewire
       - rust
@@ -218,7 +225,7 @@ parts:
       if [ -f "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token" -o $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
         patch -p1 < $SNAPCRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
       fi
-      export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
+      export MOZCONFIG="$SNAPCRAFT_STAGE/mozconfig"
       if [ $SNAPCRAFT_TARGET_ARCH != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
       fi
@@ -368,12 +375,14 @@ parts:
 
   apikeys:
     plugin: nil
+    after:
+      - mozconfig
     build-packages:
       - coreutils
       - gpg
       - jq
     override-build: |
-      export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
+      MOZCONFIG="$SNAPCRAFT_STAGE/mozconfig"
       gpg -d --batch --passphrase "$(base64 -d $SNAPCRAFT_PROJECT_DIR/.passphrase)" -o apikeys $SNAPCRAFT_PROJECT_DIR/.apikeys
       cat apikeys | jq .MOZ_GOOGLE_LOCATION_SERVICE_API_KEY | tr -d '"' > $SNAPCRAFT_PART_INSTALL/gls-gapi.data
       echo "ac_add_options --with-google-location-service-api-keyfile=$SNAPCRAFT_STAGE/gls-gapi.data" >> $MOZCONFIG
