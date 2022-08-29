@@ -128,8 +128,9 @@ parts:
       - libtinfo5
       - make
       - wget
+    build-environment:
+      - LLVM_RELEASE: "14.0.0"
     override-pull: |
-      LLVM_RELEASE=14.0.0
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
       BINARIES_BASENAME=clang+llvm-$LLVM_RELEASE
@@ -147,7 +148,7 @@ parts:
       fi
     override-build: |
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        cd llvm-*.src
+        cd llvm-$LLVM_RELEASE.src
         mkdir build
         cd build
         cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DLLVM_INCLUDE_BENCHMARKS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$SNAPCRAFT_PART_INSTALL/usr ..
@@ -156,7 +157,7 @@ parts:
     override-stage: |
       snapcraftctl stage
       mkdir -p usr
-      cp -R $SNAPCRAFT_PART_SRC/clang+llvm-*/* usr/
+      cp -R $SNAPCRAFT_PART_SRC/clang+llvm-$LLVM_RELEASE-*/* usr/
     override-prime: ''
 
   dump-syms:
@@ -193,17 +194,19 @@ parts:
       - clang
     build-packages:
       - wget
+    build-environment:
+      - WASI_BRANCH: "14"
+      - WASI_RELEASE: "14.0"
     override-pull: |
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        WASI_RELEASE=14.0
-        ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-14
+        ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$WASI_BRANCH
         wget $ROOT/wasi-sysroot-$WASI_RELEASE.tar.gz
         wget $ROOT/libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
       fi
     override-build: |
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        tar -C $SNAPCRAFT_STAGE -xf wasi-sysroot-*.tar.gz
-        tar -C $SNAPCRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-*.tar.gz
+        tar -C $SNAPCRAFT_STAGE -xf wasi-sysroot-$WASI_RELEASE.tar.gz
+        tar -C $SNAPCRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
       fi
     override-prime: ''
 
@@ -211,8 +214,9 @@ parts:
     plugin: nil
     build-packages:
       - wget
+    build-environment:
+      - NODEJS_RELEASE: "v16.17.0"
     override-pull: |
-      NODEJS_RELEASE=v16.17.0
       ROOT=https://nodejs.org/dist/$NODEJS_RELEASE/node-$NODEJS_RELEASE-linux-
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         SUFFIX=x64.tar.xz
@@ -223,7 +227,7 @@ parts:
       fi
       wget -O - $ROOT$SUFFIX | tar -x --xz
     override-build: |
-      cp -R node-*/ $SNAPCRAFT_PART_INSTALL/usr/
+      cp -R node-$NODEJS_RELEASE-linux-*/ $SNAPCRAFT_PART_INSTALL/usr/
     override-prime: ''
 
   # Launchpad builders have a timeout for how long they are allowed to access
