@@ -285,7 +285,7 @@ parts:
       cp toolkit/crashreporter/tools/upload_symbols.py $SNAPCRAFT_STAGE/debug-symbols/
     override-build: |
       QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
-      MOZCONFIG="$SNAPCRAFT_STAGE/mozconfig"
+      export MOZCONFIG="$SNAPCRAFT_STAGE/mozconfig"
       BUILD_DBGSYMS=false
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         # Build and publish debug symbols for amd64 only, because Launchpad
