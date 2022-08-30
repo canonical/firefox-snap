@@ -123,8 +123,8 @@ parts:
     build-packages:
       - wget
     build-environment:
-      - WASI_BRANCH: "14"
-      - WASI_RELEASE: "14.0"
+      - WASI_BRANCH: "15"
+      - WASI_RELEASE: "15.0"
     override-pull: |
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$WASI_BRANCH
