@@ -62,6 +62,7 @@ apps:
       - gsettings
       - hardware-observe
       - home
+      - host-hunspell
       - joystick
       - network
       - network-observe
