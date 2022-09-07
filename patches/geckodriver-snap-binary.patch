@@ -1,64 +1,109 @@
 # HG changeset patch
 # User Olivier Tilloy <olivier@tilloy.net>
-# Date 1652448789 -7200
-#      Fri May 13 15:33:09 2022 +0200
-# Node ID 7cc4bae5c24b7ff49a8c446f8cd3d7f855e2d25b
-# Parent  150d9a179926637ee79ab07da46965fbd5e817eb
-Bug 1766125 - Rewrite the firefox binary path when geckodriver is used from within snap confinement
+# Date 1662464712 0
+# Node ID 93e827afaac1b9ebf1772887d26edb6fc54a6fef
+# Parent  bf145275b8a95e7096bf9e79dd3ff80c05d704fe
+Bug 1769991 - Change the default firefox binary path when geckodriver is used from within snap confinement r=webdriver-reviewers,jgraham,whimboo
 
 Differential Revision: https://phabricator.services.mozilla.com/D146303
 
-diff --git a/testing/geckodriver/src/capabilities.rs b/testing/geckodriver/src/capabilities.rs
---- a/testing/geckodriver/src/capabilities.rs
-+++ b/testing/geckodriver/src/capabilities.rs
-@@ -15,6 +15,7 @@ use regex::bytes::Regex;
- use serde_json::{Map, Value};
- use std::collections::BTreeMap;
- use std::default::Default;
-+use std::env;
- use std::ffi::OsString;
- use std::fmt::{self, Display};
- use std::fs;
-@@ -26,6 +27,18 @@ use std::str::{self, FromStr};
- use webdriver::capabilities::{BrowserCapabilities, Capabilities};
- use webdriver::error::{ErrorStatus, WebDriverError, WebDriverResult};
+diff --git a/testing/mozbase/rust/mozrunner/src/runner.rs b/testing/mozbase/rust/mozrunner/src/runner.rs
+--- a/testing/mozbase/rust/mozrunner/src/runner.rs
++++ b/testing/mozbase/rust/mozrunner/src/runner.rs
+@@ -325,24 +325,96 @@ impl Runner for FirefoxRunner {
+ pub mod platform {
+     use crate::path::find_binary;
+     use std::path::PathBuf;
  
-+const SNAP_LAUNCHER: &str = "/snap/firefox/current/firefox.launcher";
-+
-+fn running_as_snap() -> bool {
-+    let instance_name = env::var("SNAP_INSTANCE_NAME").unwrap_or(String::new());
-+    if !instance_name.is_empty() {
-+        return true;
-+    }
-+    // Compatibility for snapd <= 2.35:
-+    let snap_name = env::var("SNAP_NAME").unwrap_or(String::new());
-+    return !snap_name.is_empty();
-+}
-+
- #[derive(Clone, Debug)]
- enum VersionError {
-     VersionError(mozversion::Error),
-@@ -76,6 +89,10 @@ impl<'a> FirefoxCapabilities<'a> {
+     pub fn resolve_binary_path(path: &mut PathBuf) -> &PathBuf {
+         path
      }
  
-     fn set_binary(&mut self, capabilities: &Map<String, Value>) {
++    fn running_as_snap() -> bool {
++        std::env::var("SNAP_INSTANCE_NAME")
++            .or_else(|_| {
++                // Compatibility for snapd <= 2.35
++                std::env::var("SNAP_NAME")
++            })
++            .map(|name| !name.is_empty())
++            .unwrap_or(false)
++    }
++
+     /// Searches the system path for `firefox`.
+     pub fn firefox_default_path() -> Option<PathBuf> {
 +        if running_as_snap() {
-+            self.chosen_binary = Some(PathBuf::from(SNAP_LAUNCHER));
-+            return;
++            return Some(PathBuf::from("/snap/firefox/current/firefox.launcher"));
 +        }
-         self.chosen_binary = capabilities
-             .get("moz:firefoxOptions")
-             .and_then(|x| x.get("binary"))
-@@ -222,7 +239,11 @@ impl<'a> BrowserCapabilities for Firefox
-                             }
-                         }
-                         "binary" => {
--                            if let Some(binary) = value.as_str() {
-+                            if let Some(mut binary) = value.as_str() {
-+                                if running_as_snap() {
-+                                    debug!("Ignoring custom Firefox binary location, overriding it with '{}'", SNAP_LAUNCHER);
-+                                    binary = SNAP_LAUNCHER;
-+                                }
-                                 if !data.contains_key("androidPackage")
-                                     && self.version(Some(Path::new(binary))).is_err()
-                                 {
+         find_binary("firefox")
+     }
+ 
+     pub fn arg_prefix_char(c: char) -> bool {
+         c == '-'
+     }
++
++    #[cfg(test)]
++    mod tests {
++        use crate::firefox_default_path;
++        use std::env;
++        use std::ops::Drop;
++        use std::path::PathBuf;
++
++        static SNAP_KEY: &str = "SNAP_INSTANCE_NAME";
++        static SNAP_LEGACY_KEY: &str = "SNAP_NAME";
++
++        struct SnapEnvironment {
++            initial_environment: (Option<String>, Option<String>),
++        }
++
++        impl SnapEnvironment {
++            fn new() -> SnapEnvironment {
++                SnapEnvironment {
++                    initial_environment: (env::var(SNAP_KEY).ok(), env::var(SNAP_LEGACY_KEY).ok()),
++                }
++            }
++
++            fn set(&self, value: Option<String>, legacy_value: Option<String>) {
++                fn set_env(key: &str, value: Option<String>) {
++                    match value {
++                        Some(value) => env::set_var(key, value),
++                        None => env::remove_var(key),
++                    }
++                }
++                set_env(SNAP_KEY, value);
++                set_env(SNAP_LEGACY_KEY, legacy_value);
++            }
++        }
++
++        impl Drop for SnapEnvironment {
++            fn drop(&mut self) {
++                self.set(
++                    self.initial_environment.0.clone(),
++                    self.initial_environment.1.clone(),
++                )
++            }
++        }
++
++        #[test]
++        fn test_default_path() {
++            let snap_path = Some(PathBuf::from("/snap/firefox/current/firefox.launcher"));
++
++            let snap_env = SnapEnvironment::new();
++
++            snap_env.set(None, None);
++            assert_ne!(firefox_default_path(), snap_path);
++
++            snap_env.set(Some("value".into()), None);
++            assert_eq!(firefox_default_path(), snap_path);
++
++            snap_env.set(None, Some("value".into()));
++            assert_eq!(firefox_default_path(), snap_path);
++        }
++    }
+ }
+ 
+ #[cfg(target_os = "macos")]
+ pub mod platform {
+     use crate::path::{find_binary, is_binary};
+     use dirs;
+     use plist::Value;
+     use std::path::PathBuf;
