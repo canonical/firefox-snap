@@ -1,17 +1,9 @@
-# HG changeset patch
-# User Olivier Tilloy <olivier@tilloy.net>
-# Date 1646937457 -3600
-#      Thu Mar 10 19:37:37 2022 +0100
-# Node ID e2f0b11991c5a3b310acb637d0d338f989414af5
-# Parent  4e99353cf3334caf457ee247724f8623e5c38fb6
-Bug 1661935 - Integration with a new WebExtensions XDG desktop portal for native messaging on Linux
-
-Differential Revision: https://phabricator.services.mozilla.com/D140803
-
 diff --git a/modules/libpref/init/StaticPrefList.yaml b/modules/libpref/init/StaticPrefList.yaml
 --- a/modules/libpref/init/StaticPrefList.yaml
 +++ b/modules/libpref/init/StaticPrefList.yaml
-@@ -13912,6 +13912,16 @@
+@@ -14023,10 +14023,20 @@
+ - name: widget.use-xdg-desktop-portal.mime-handler
+   type: int32_t
    value: 2
    mirror: always
  
@@ -28,34 +20,14 @@ diff --git a/modules/libpref/init/StaticPrefList.yaml b/modules/libpref/init/Sta
  # Whether to try to use XDG portal for settings / look-and-feel information.
  # https://flatpak.github.io/xdg-desktop-portal/#gdbus-org.freedesktop.portal.Settings
  #  - 0: never
-diff --git a/python/mozboot/mozboot/debian.py b/python/mozboot/mozboot/debian.py
---- a/python/mozboot/mozboot/debian.py
-+++ b/python/mozboot/mozboot/debian.py
-@@ -18,6 +18,7 @@ class DebianBootstrapper(LinuxBootstrapp
-         "build-essential",
-         "libpython3-dev",
-         "m4",
-+        "pkg-config",
-         "unzip",
-         "uuid",
-         "zip",
-@@ -27,10 +28,12 @@ class DebianBootstrapper(LinuxBootstrapp
-     # (browser) for all Debian-derived distros (such as Ubuntu).
-     BROWSER_COMMON_PACKAGES = [
-         "libasound2-dev",
-+        "libcairo2-dev",
-         "libcurl4-openssl-dev",
-         "libdbus-1-dev",
-         "libdbus-glib-1-dev",
-         "libdrm-dev",
-+        "libgirepository1.0-dev",
-         "libgtk-3-dev",
-         "libpulse-dev",
-         "libx11-xcb-dev",
+ #  - 1: always
+ #  - 2: auto
 diff --git a/python/mozbuild/mozbuild/mozinfo.py b/python/mozbuild/mozbuild/mozinfo.py
 --- a/python/mozbuild/mozbuild/mozinfo.py
 +++ b/python/mozbuild/mozbuild/mozinfo.py
-@@ -145,6 +145,9 @@ def build_dict(config, env=os.environ):
+@@ -143,10 +143,13 @@
+         d.get("buildapp", "") == "mobile/android"
+         and "MOZ_ANDROID_MIN_SDK_VERSION" in substs
      ):
          d["android_min_sdk"] = substs["MOZ_ANDROID_MIN_SDK_VERSION"]
  
@@ -65,21 +37,35 @@ diff --git a/python/mozbuild/mozbuild/mozinfo.py b/python/mozbuild/mozbuild/mozi
      return d
  
  
-diff --git a/python/sites/mach.txt b/python/sites/mach.txt
---- a/python/sites/mach.txt
-+++ b/python/sites/mach.txt
-@@ -135,3 +135,7 @@ pypi-optional:glean-sdk==50.1.3:telemetr
- # support down to the oldest locally-installed version (5.4.2).
- pypi-optional:psutil>=5.4.2,<=5.8.0:telemetry will be missing some data
- pypi-optional:zstandard>=0.11.1,<=0.17.0:zstd archives will not be possible to extract
-+# dbus and dbusmock are needed for some xpcshell tests on linux
-+pypi-optional:dbus-python==1.2.18:some xpcshell tests requiring DBus mocking will not run
-+pypi-optional:PyGObject==3.42.1:some xpcshell tests requiring DBus mocking will not run
-+pypi-optional:python-dbusmock==0.28.0:some xpcshell tests requiring DBus mocking will not run
+ def write_mozinfo(file, config, env=os.environ):
+     """Write JSON data about the configuration specified in config and an
+diff --git a/testing/mozharness/configs/unittests/linux_unittest.py b/testing/mozharness/configs/unittests/linux_unittest.py
+--- a/testing/mozharness/configs/unittests/linux_unittest.py
++++ b/testing/mozharness/configs/unittests/linux_unittest.py
+@@ -32,11 +32,16 @@
+     VALGRIND_SUPP_ARCH = os.path.join(VALGRIND_SUPP_DIR, "i386-pc-linux-gnu.sup")
+ 
+ #####
+ config = {
+     ###
+-    "virtualenv_modules": ["six==1.13.0", "vcversioner==2.16.0.0"],
++    "virtualenv_modules": [
++        "six==1.13.0",
++        "vcversioner==2.16.0.0",
++        "dbus-python==1.2.18",
++        "python-dbusmock==0.28.4",
++    ],
+     "installer_path": INSTALLER_PATH,
+     "binary_path": BINARY_PATH,
+     "xpcshell_name": XPCSHELL_NAME,
+     "http3server_name": HTTP3SERVER_NAME,
+     "exe_suffix": EXE_SUFFIX,
 diff --git a/toolkit/components/extensions/NativeMessaging.jsm b/toolkit/components/extensions/NativeMessaging.jsm
 --- a/toolkit/components/extensions/NativeMessaging.jsm
 +++ b/toolkit/components/extensions/NativeMessaging.jsm
-@@ -31,6 +31,13 @@ XPCOMUtils.defineLazyModuleGetters(lazy,
+@@ -29,10 +29,17 @@
+   NativeManifests: "resource://gre/modules/NativeManifests.jsm",
+   OS: "resource://gre/modules/osfile.jsm",
    Subprocess: "resource://gre/modules/Subprocess.jsm",
  });
  
@@ -93,7 +79,11 @@ diff --git a/toolkit/components/extensions/NativeMessaging.jsm b/toolkit/compone
  // For a graceful shutdown (i.e., when the extension is unloaded or when it
  // explicitly calls disconnect() on a native port), how long we give the native
  // application to exit before we start trying to kill it.  (in milliseconds)
-@@ -71,6 +78,14 @@ var NativeApp = class extends EventEmitt
+ const GRACEFUL_SHUTDOWN_TIME = 3000;
+ 
+@@ -69,10 +76,18 @@
+     this.proc = null;
+     this.readPromise = null;
      this.sendQueue = [];
      this.writePromise = null;
      this.cleanupStarted = false;
@@ -108,57 +98,70 @@ diff --git a/toolkit/components/extensions/NativeMessaging.jsm b/toolkit/compone
  
      this.startupPromise = lazy.NativeManifests.lookupManifest(
        "stdio",
-@@ -119,6 +134,49 @@ var NativeApp = class extends EventEmitt
+       application,
+       context
+@@ -117,10 +132,58 @@
+         Cu.reportError(err instanceof Error ? err : err.message);
+         this._cleanup(err);
        });
    }
  
-+  async _initPortal() {
-+    this.startupPromise = lazy.portal.available.then(available => {
-+      if (available) {
-+        return lazy.portal
-+          .createSession(this.name)
-+          .then(handle => {
-+            this.portalSessionHandle = handle;
-+            return lazy.portal
-+              .start(handle, this.name, this.context.extension.id)
-+              .catch(err => {
-+                if (err.name == "NotFoundError") {
-+                  throw new ExtensionError(
-+                    `No such native application ${this.name}`
-+                  );
-+                } else {
-+                  throw err;
-+                }
-+              });
-+          })
-+          .then(pipes => {
-+            return lazy.Subprocess.connectRunning([
-+              pipes.stdin,
-+              pipes.stdout,
-+              pipes.stderr,
-+            ]);
-+          })
-+          .then(proc => {
-+            this.startupPromise = null;
-+            this.proc = proc;
-+            this._startRead();
-+            this._startWrite();
-+            this._startStderrRead();
-+          })
-+          .catch(err => {
-+            this.startupPromise = null;
-+            Cu.reportError(err instanceof Error ? err : err.message);
-+            this._cleanup(err);
-+          });
-+      }
++  _initPortal() {
++    this.startupPromise = this._doInitPortal();
++  }
++
++  async _doInitPortal() {
++    let available = await lazy.portal.available;
++
++    if (!available) {
 +      this.startupPromise = null;
-+    });
++      let err = new ExtensionError("Native messaging portal is not available");
++      Cu.reportError(err);
++      this._cleanup(err);
++      return;
++    }
++
++    try {
++      let handle = await lazy.portal.createSession(this.name);
++      this.portalSessionHandle = handle;
++      let pipes;
++      try {
++        pipes = await lazy.portal.start(
++          handle,
++          this.name,
++          this.context.extension.id
++        );
++      } catch (err) {
++        if (err.name == "NotFoundError") {
++          throw new ExtensionError(`No such native application ${this.name}`);
++        } else {
++          throw err;
++        }
++      }
++      this.proc = await lazy.Subprocess.connectRunning([
++        pipes.stdin,
++        pipes.stdout,
++        pipes.stderr,
++      ]);
++      this.startupPromise = null;
++      this._startRead();
++      this._startWrite();
++      this._startStderrRead();
++    } catch (err) {
++      this.startupPromise = null;
++      Cu.reportError(err instanceof Error ? err : err.message);
++      this._cleanup(err);
++    }
 +  }
 +
    /**
     * Open a connection to a native messaging host.
     * @param {number} portId A unique internal ID that identifies the port.
-@@ -287,6 +345,18 @@ var NativeApp = class extends EventEmitt
+    * @param {NativeMessenger} port Parent NativeMessenger used to send messages.
+    * @returns {ParentPort}
+@@ -285,10 +348,19 @@
+       this.emit("disconnect", err);
+     }
  
      await this.startupPromise;
  
@@ -166,10 +169,7 @@ diff --git a/toolkit/components/extensions/NativeMessaging.jsm b/toolkit/compone
 +      await this.writePromise;
 +      await lazy.portal.closeSession(this.portalSessionHandle).then(_ => {
 +        this.portalSessionHandle = null;
-+        this.proc.exitCode = 0;
-+        this.proc.wait().then(() => {
-+          this.proc = null;
-+        });
++        this.proc = null;
 +      });
 +      return;
 +    }
@@ -177,6 +177,87 @@ diff --git a/toolkit/components/extensions/NativeMessaging.jsm b/toolkit/compone
      if (!this.proc) {
        // Failed to initialize proc in the constructor.
        return;
+     }
+ 
+diff --git a/toolkit/components/extensions/NativeMessagingPortal.h b/toolkit/components/extensions/NativeMessagingPortal.h
+new file mode 100644
+--- /dev/null
++++ b/toolkit/components/extensions/NativeMessagingPortal.h
+@@ -0,0 +1,74 @@
++/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
++/* vim: set ts=8 sts=2 et sw=2 tw=80: */
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++#ifndef mozilla_extensions_NativeMessagingPortal_h
++#define mozilla_extensions_NativeMessagingPortal_h
++
++#include "nsINativeMessagingPortal.h"
++
++#include <gio/gio.h>
++
++#include "mozilla/GRefPtr.h"
++#include "mozilla/UniquePtr.h"
++
++#include <deque>
++#include <unordered_map>
++
++namespace mozilla::extensions {
++
++enum class SessionState { Active, Closing, Error };
++
++class NativeMessagingPortal : public nsINativeMessagingPortal {
++ public:
++  NS_DECL_NSINATIVEMESSAGINGPORTAL
++  NS_DECL_ISUPPORTS
++
++  static already_AddRefed<NativeMessagingPortal> GetSingleton();
++
++ private:
++  NativeMessagingPortal();
++  virtual ~NativeMessagingPortal();
++
++  RefPtr<GDBusProxy> mProxy;
++  bool mInitialized = false;
++  RefPtr<GCancellable> mCancellable;
++
++  struct DelayedCall;
++  std::deque<UniquePtr<DelayedCall>> mPending;
++
++  using SessionsMap = std::unordered_map<std::string, SessionState>;
++  SessionsMap mSessions;
++
++  // Callbacks
++  static void OnProxyReady(GObject* source, GAsyncResult* result,
++                           gpointer user_data);
++  void MaybeDelayedIsAvailable(dom::Promise&, GVariant*);
++  void MaybeDelayedCreateSession(dom::Promise&, GVariant*);
++  static void OnCreateSessionDone(GObject* source, GAsyncResult* result,
++                                  gpointer user_data);
++  static void OnCloseSessionProxyReady(GObject* source, GAsyncResult* result,
++                                       gpointer user_data);
++  static void OnCloseSessionDone(GObject* source, GAsyncResult* result,
++                                 gpointer user_data);
++  static void OnSessionClosedSignal(GDBusConnection* bus,
++                                    const gchar* sender_name,
++                                    const gchar* object_path,
++                                    const gchar* interface_name,
++                                    const gchar* signal_name,
++                                    GVariant* parameters, gpointer user_data);
++  static void OnStartDone(GObject* source, GAsyncResult* result,
++                          gpointer user_data);
++  static void OnStartRequestResponseSignal(
++      GDBusConnection* bus, const gchar* sender_name, const gchar* object_path,
++      const gchar* interface_name, const gchar* signal_name,
++      GVariant* parameters, gpointer user_data);
++  static void OnGetPipesDone(GObject* source, GAsyncResult* result,
++                             gpointer user_data);
++};
++
++}  // namespace mozilla::extensions
++
++#endif  // mozilla_extensions_NativeMessagingPortal_h
 diff --git a/toolkit/components/extensions/NativeMessagingPortal.cpp b/toolkit/components/extensions/NativeMessagingPortal.cpp
 new file mode 100644
 --- /dev/null
@@ -801,89 +882,12 @@ new file mode 100644
 +}
 +
 +}  // namespace mozilla::extensions
-diff --git a/toolkit/components/extensions/NativeMessagingPortal.h b/toolkit/components/extensions/NativeMessagingPortal.h
-new file mode 100644
---- /dev/null
-+++ b/toolkit/components/extensions/NativeMessagingPortal.h
-@@ -0,0 +1,74 @@
-+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-+/* This Source Code Form is subject to the terms of the Mozilla Public
-+ * License, v. 2.0. If a copy of the MPL was not distributed with this
-+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-+
-+#ifndef mozilla_extensions_NativeMessagingPortal_h
-+#define mozilla_extensions_NativeMessagingPortal_h
-+
-+#include "nsINativeMessagingPortal.h"
-+
-+#include <gio/gio.h>
-+
-+#include "mozilla/GRefPtr.h"
-+#include "mozilla/UniquePtr.h"
-+
-+#include <deque>
-+#include <unordered_map>
-+
-+namespace mozilla::extensions {
-+
-+enum class SessionState { Active, Closing, Error };
-+
-+class NativeMessagingPortal : public nsINativeMessagingPortal {
-+ public:
-+  NS_DECL_NSINATIVEMESSAGINGPORTAL
-+  NS_DECL_ISUPPORTS
-+
-+  static already_AddRefed<NativeMessagingPortal> GetSingleton();
-+
-+ private:
-+  NativeMessagingPortal();
-+  virtual ~NativeMessagingPortal();
-+
-+  RefPtr<GDBusProxy> mProxy;
-+  bool mInitialized = false;
-+  RefPtr<GCancellable> mCancellable;
-+
-+  struct DelayedCall;
-+  std::deque<UniquePtr<DelayedCall>> mPending;
-+
-+  using SessionsMap = std::unordered_map<std::string, SessionState>;
-+  SessionsMap mSessions;
-+
-+  // Callbacks
-+  static void OnProxyReady(GObject* source, GAsyncResult* result,
-+                           gpointer user_data);
-+  void MaybeDelayedIsAvailable(dom::Promise&, GVariant*);
-+  void MaybeDelayedCreateSession(dom::Promise&, GVariant*);
-+  static void OnCreateSessionDone(GObject* source, GAsyncResult* result,
-+                                  gpointer user_data);
-+  static void OnCloseSessionProxyReady(GObject* source, GAsyncResult* result,
-+                                       gpointer user_data);
-+  static void OnCloseSessionDone(GObject* source, GAsyncResult* result,
-+                                 gpointer user_data);
-+  static void OnSessionClosedSignal(GDBusConnection* bus,
-+                                    const gchar* sender_name,
-+                                    const gchar* object_path,
-+                                    const gchar* interface_name,
-+                                    const gchar* signal_name,
-+                                    GVariant* parameters, gpointer user_data);
-+  static void OnStartDone(GObject* source, GAsyncResult* result,
-+                          gpointer user_data);
-+  static void OnStartRequestResponseSignal(
-+      GDBusConnection* bus, const gchar* sender_name, const gchar* object_path,
-+      const gchar* interface_name, const gchar* signal_name,
-+      GVariant* parameters, gpointer user_data);
-+  static void OnGetPipesDone(GObject* source, GAsyncResult* result,
-+                             gpointer user_data);
-+};
-+
-+}  // namespace mozilla::extensions
-+
-+#endif  // mozilla_extensions_NativeMessagingPortal_h
 diff --git a/toolkit/components/extensions/components.conf b/toolkit/components/extensions/components.conf
 --- a/toolkit/components/extensions/components.conf
 +++ b/toolkit/components/extensions/components.conf
-@@ -14,3 +14,15 @@ Classes = [
+@@ -12,5 +12,17 @@
+         'constructor': 'mozilla::extensions::ExtensionsChild::GetSingleton',
+         'headers': ['mozilla/extensions/ExtensionsChild.h'],
          'categories': {'app-startup': 'ExtensionsChild'},
      },
  ]
@@ -902,7 +906,9 @@ diff --git a/toolkit/components/extensions/components.conf b/toolkit/components/
 diff --git a/toolkit/components/extensions/moz.build b/toolkit/components/extensions/moz.build
 --- a/toolkit/components/extensions/moz.build
 +++ b/toolkit/components/extensions/moz.build
-@@ -72,6 +72,7 @@ XPIDL_SOURCES += [
+@@ -72,10 +72,11 @@
+ 
+ XPIDL_SOURCES += [
      "extIWebNavigation.idl",
      "mozIExtensionAPIRequestHandling.idl",
      "mozIExtensionProcessScript.idl",
@@ -910,7 +916,11 @@ diff --git a/toolkit/components/extensions/moz.build b/toolkit/components/extens
  ]
  
  XPIDL_MODULE = "webextensions"
-@@ -98,6 +99,13 @@ UNIFIED_SOURCES += [
+ 
+ EXPORTS.mozilla = [
+@@ -98,10 +99,17 @@
+     "ExtensionsParent.cpp",
+     "MatchPattern.cpp",
      "WebExtensionPolicy.cpp",
  ]
  
@@ -924,6 +934,8 @@ diff --git a/toolkit/components/extensions/moz.build b/toolkit/components/extens
  XPCOM_MANIFESTS += [
      "components.conf",
  ]
+ 
+ FINAL_LIBRARY = "xul"
 diff --git a/toolkit/components/extensions/nsINativeMessagingPortal.idl b/toolkit/components/extensions/nsINativeMessagingPortal.idl
 new file mode 100644
 --- /dev/null
@@ -1003,8 +1015,10 @@ new file mode 100644
 diff --git a/toolkit/components/extensions/test/xpcshell/native_messaging.ini b/toolkit/components/extensions/test/xpcshell/native_messaging.ini
 --- a/toolkit/components/extensions/test/xpcshell/native_messaging.ini
 +++ b/toolkit/components/extensions/test/xpcshell/native_messaging.ini
-@@ -14,4 +14,7 @@ skip-if =
+@@ -13,6 +13,9 @@
+   (os == "win" && processor == "aarch64") # bug 1530841
    apple_silicon # bug 1729540
+ run-sequentially = very high failure rate in parallel
  [test_ext_native_messaging_perf.js]
  skip-if = tsan # Unreasonably slow, bug 1612707
 +[test_ext_native_messaging_portal.js]
@@ -1015,7 +1029,7 @@ diff --git a/toolkit/components/extensions/test/xpcshell/test_ext_native_messagi
 new file mode 100644
 --- /dev/null
 +++ b/toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js
-@@ -0,0 +1,368 @@
+@@ -0,0 +1,380 @@
 +/* -*- Mode: indent-tabs-mode: nil; js-indent-level: 2 -*- */
 +/* vim: set sts=2 sw=2 et tw=80: */
 +"use strict";
@@ -1155,13 +1169,14 @@ new file mode 100644
 +    await FDS_MOCK.kill();
 +    await mockSetup(portalObjectPath, resetMethod, []);
 +    await DBUS_MOCK.kill();
-+
-+    // FIXME: killing the process fails the test (return code -15), but not
-+    // doing so leaves a stray dbus-daemon process behind.
-+    /*const ProcessTools = Cc["@mozilla.org/processtools-service;1"].getService(
-+      Ci.nsIProcessToolsService
-+    );
-+    ProcessTools.kill(DBUS_SESSION_BUS_PID);*/
++    // XXX: While this works locally, it consistently fails when tests are run
++    // in CI, with "xpcshell return code: -15". This needs to be investigated
++    // further. This leaves a stray dbus-daemon process behind,
++    // which isn't ideal, but is harmless.
++    /*await lazy.Subprocess.call({
++      command: await lazy.Subprocess.pathSearch("kill"),
++      arguments: ["-SIGQUIT", DBUS_SESSION_BUS_PID],
++    });*/
 +  });
 +
 +  // Set up the mock objects and methods.
@@ -1372,11 +1387,22 @@ new file mode 100644
 +    useAddonManager: "temporary",
 +  });
 +
++  let logged = false;
++  function listener(msg) {
++    logged ||= /Native messaging portal is not available/.test(msg.message);
++  }
++  Services.console.registerListener(listener);
++  registerCleanupFunction(() => {
++    Services.console.unregisterListener(listener);
++  });
++
 +  await extension.startup();
 +  await withHandlingUserInput(extension, async () => {
 +    extension.sendMessage("request");
 +    await extension.awaitMessage("ready");
 +  });
++
++  ok(logged, "Non availability of the portal was logged");
 +
 +  // Verify that the native messaging portal wasn't talked to,
 +  // because it advertised itself as not available.
@@ -1387,7 +1413,9 @@ new file mode 100644
 diff --git a/toolkit/modules/subprocess/Subprocess.jsm b/toolkit/modules/subprocess/Subprocess.jsm
 --- a/toolkit/modules/subprocess/Subprocess.jsm
 +++ b/toolkit/modules/subprocess/Subprocess.jsm
-@@ -204,6 +204,19 @@ var Subprocess = {
+@@ -202,10 +202,23 @@
+     // Promise.resolve lets us get around returning one of the Promise.jsm
+     // pseudo-promises returned by Task.jsm.
      let path = lazy.SubprocessImpl.pathSearch(command, environment);
      return Promise.resolve(path);
    },
@@ -1407,10 +1435,24 @@ diff --git a/toolkit/modules/subprocess/Subprocess.jsm b/toolkit/modules/subproc
  };
  
  Object.assign(Subprocess, SubprocessConstants);
+ Object.freeze(Subprocess);
+ 
 diff --git a/toolkit/modules/subprocess/subprocess_common.jsm b/toolkit/modules/subprocess/subprocess_common.jsm
 --- a/toolkit/modules/subprocess/subprocess_common.jsm
 +++ b/toolkit/modules/subprocess/subprocess_common.jsm
-@@ -592,10 +592,17 @@ class BaseProcess {
+@@ -587,17 +587,26 @@
+      *           The process ID of the process, assigned by the operating system.
+      *           @readonly
+      */
+     this.pid = pid;
+ 
++    /**
++     * @property {boolean} managed
++     *           Whether the process is externally managed, or spawned by us.
++     *           @readonly
++     */
++    this.managed = pid == 0;
++
      this.exitCode = null;
  
      this.exitPromise = new Promise(resolve => {
@@ -1418,21 +1460,20 @@ diff --git a/toolkit/modules/subprocess/subprocess_common.jsm b/toolkit/modules/
 -        resolve(Object.freeze({ exitCode }));
 -        this.exitCode = exitCode;
 -      });
-+      if (this.id > 0) {
++      if (!this.managed) {
 +        this.worker.call("wait", [this.id]).then(({ exitCode }) => {
 +          resolve(Object.freeze({ exitCode }));
 +          this.exitCode = exitCode;
 +        });
-+      } else {
-+        // The processId is 0 if we were called by fromRunning(). In this case
-+        // the process is managed externally, and we cannot wait() on it
-+        // to get its exit status.
-+        resolve(Object.freeze({ exitCode: 0 }));
 +      }
      });
  
      if (fds[0] !== undefined) {
-@@ -643,6 +650,14 @@ class BaseProcess {
+       /**
+        * @property {OutputPipe} stdin
+@@ -641,10 +650,18 @@
+     return worker.call("spawn", [options]).then(({ processId, fds, pid }) => {
+       return new this(worker, processId, fds, pid);
      });
    }
  
@@ -1447,10 +1488,41 @@ diff --git a/toolkit/modules/subprocess/subprocess_common.jsm b/toolkit/modules/
    static get WORKER_URL() {
      throw new Error("Not implemented");
    }
+ 
+   static get WorkerClass() {
+@@ -678,10 +695,14 @@
+    * @returns {Promise<object>}
+    *          Resolves to an object with an `exitCode` property when the process
+    *          has exited.
+    */
+   kill(timeout = 300) {
++    if (this.managed) {
++      throw new Error("Cannot kill a process managed externally");
++    }
++
+     // If the process has already exited, don't bother sending a signal.
+     if (this.exitCode != null) {
+       return this.wait();
+     }
+ 
+@@ -712,8 +733,11 @@
+    * value of the error code. On Windows, an exit code of -9 indicates
+    * that the process was killed via the {@linkcode BaseProcess#kill kill()}
+    * method.
+    */
+   wait() {
++    if (this.managed) {
++      throw new Error("Cannot wait on a process managed externally");
++    }
+     return this.exitPromise;
+   }
+ }
 diff --git a/toolkit/modules/subprocess/subprocess_unix.jsm b/toolkit/modules/subprocess/subprocess_unix.jsm
 --- a/toolkit/modules/subprocess/subprocess_unix.jsm
 +++ b/toolkit/modules/subprocess/subprocess_unix.jsm
-@@ -202,6 +202,10 @@ var SubprocessUnix = {
+@@ -198,8 +198,12 @@
+     }
+     let error = new Error(`Executable not found: ${bin}`);
      error.errorCode = SubprocessConstants.ERROR_BAD_EXECUTABLE;
      throw error;
    },
@@ -1464,7 +1536,9 @@ diff --git a/toolkit/modules/subprocess/subprocess_unix.jsm b/toolkit/modules/su
 diff --git a/toolkit/modules/subprocess/subprocess_win.jsm b/toolkit/modules/subprocess/subprocess_win.jsm
 --- a/toolkit/modules/subprocess/subprocess_win.jsm
 +++ b/toolkit/modules/subprocess/subprocess_win.jsm
-@@ -188,6 +188,12 @@ var SubprocessWin = {
+@@ -186,8 +186,14 @@
+     }
+     let error = new Error(`Executable not found: ${bin}`);
      error.errorCode = SubprocessConstants.ERROR_BAD_EXECUTABLE;
      throw error;
    },
@@ -1480,34 +1554,43 @@ diff --git a/toolkit/modules/subprocess/subprocess_win.jsm b/toolkit/modules/sub
 diff --git a/toolkit/modules/subprocess/subprocess_worker_common.js b/toolkit/modules/subprocess/subprocess_worker_common.js
 --- a/toolkit/modules/subprocess/subprocess_worker_common.js
 +++ b/toolkit/modules/subprocess/subprocess_worker_common.js
-@@ -61,7 +61,11 @@ class BaseProcess {
+@@ -57,11 +57,15 @@
+     });
  
-     this.stringArrays = [];
+     this.pid = null;
+     this.pipes = [];
  
 -    this.spawn(options);
-+    if (options.spawn) {
-+      this.spawn(options);
-+    } else {
++    if (options.managed) {
 +      this.connectRunning(options);
++    } else {
++      this.spawn(options);
 +    }
    }
  
    /**
-@@ -123,6 +127,7 @@ let requests = {
+    * Waits for the process to exit and all of its pending IO operations to
+    * complete.
+@@ -94,20 +98,33 @@
+ 
+     return pipe.close(force).then(() => ({ data: {} }));
    },
  
    spawn(options) {
-+    options.spawn = true;
++    options.managed = false;
      let process = new Process(options);
      let processId = process.id;
  
-@@ -133,6 +138,18 @@ let requests = {
+     io.addProcess(process);
+ 
+     let fds = process.pipes.map(pipe => pipe.id);
+ 
      return { data: { processId, fds, pid: process.pid } };
    },
  
 +  connectRunning(fds) {
 +    let options = {};
-+    options.spawn = false;
++    options.managed = true;
 +    options.fds = fds;
 +    let process = new Process(options);
 +    let processId = process.id;
@@ -1520,10 +1603,37 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_common.js b/toolkit/mo
    kill(processId, force = false) {
      let process = io.getProcess(processId);
  
+     process.kill(force ? 9 : 15);
+ 
+@@ -160,10 +177,22 @@
+   waitForNoProcesses() {
+     return Promise.all(
+       Array.from(io.processes.values(), proc => proc.awaitFinished())
+     );
+   },
++
++  getFds(processId) {
++    let process = io.getProcess(processId);
++    let pipes = process.pipes;
++    return {
++      data: [
++        pipes[0].fd.toString(),
++        pipes[1].fd.toString(),
++        pipes[2].fd.toString(),
++      ],
++    };
++  },
+ };
+ 
+ onmessage = event => {
+   io.messageCount--;
+ 
 diff --git a/toolkit/modules/subprocess/subprocess_worker_unix.js b/toolkit/modules/subprocess/subprocess_worker_unix.js
 --- a/toolkit/modules/subprocess/subprocess_worker_unix.js
 +++ b/toolkit/modules/subprocess/subprocess_worker_unix.js
-@@ -462,6 +462,22 @@ class Process extends BaseProcess {
+@@ -404,10 +404,26 @@
+       }
+     }
    }
  
    /**
@@ -1546,7 +1656,26 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_unix.js b/toolkit/modu
     * Called when input is available on our sentinel file descriptor.
     *
     * @see pollEvents
-@@ -577,7 +593,9 @@ io = {
+    */
+   onReady() {
+@@ -455,11 +471,13 @@
+       this.exitCode = -sig;
+     } else {
+       this.exitCode = unix.WEXITSTATUS(status.value);
+     }
+ 
+-    this.fd.dispose();
++    if (this.fd !== undefined) {
++      this.fd.dispose();
++    }
+     io.updatePollFds();
+     this.resolveExit(this.exitCode);
+     return this.exitCode;
+   }
+ }
+@@ -519,11 +537,13 @@
+ 
+   updatePollFds() {
      let handlers = [
        this.signal,
        ...this.pipes.values(),
@@ -1557,10 +1686,14 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_unix.js b/toolkit/modu
      ];
  
      handlers = handlers.filter(handler => handler.pollEvents);
+ 
+     // Our poll loop is only useful if we've got at least 1 thing to poll other than our own
 diff --git a/toolkit/modules/subprocess/subprocess_worker_win.js b/toolkit/modules/subprocess/subprocess_worker_win.js
 --- a/toolkit/modules/subprocess/subprocess_worker_win.js
 +++ b/toolkit/modules/subprocess/subprocess_worker_win.js
-@@ -605,6 +605,12 @@ class Process extends BaseProcess {
+@@ -603,10 +603,16 @@
+ 
+     libc.ResumeThread(procInfo.hThread);
      libc.CloseHandle(procInfo.hThread);
    }
  
@@ -1573,43 +1706,120 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_win.js b/toolkit/modul
    /**
     * Called when our process handle is signaled as active, meaning the process
     * has exited.
+    */
+   onReady() {
 diff --git a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js b/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
 --- a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
 +++ b/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
-@@ -879,3 +879,29 @@ add_task(async function test_cleanup() {
-   equal(openFiles.size, 0, "No remaining open files");
-   equal(processes.size, 0, "No remaining processes");
+@@ -854,10 +854,87 @@
+     },
+     "Subprocess.call should fail for a bad executable"
+   );
  });
-+
+ 
 +add_task(async function test_subprocess_connectRunning() {
-+  let fds = [42, 58, 63];
 +  if (AppConstants.platform != "win") {
++    let tempFile = Services.dirsvc.get("TmpD", Ci.nsIFile);
++    tempFile.append("test-subprocess-connectRunning.txt");
++    if (tempFile.exists()) {
++      tempFile.remove(true);
++    }
++    registerCleanupFunction(async function() {
++      tempFile.remove(true);
++    });
++
++    let running = await Subprocess.call({
++      command: await Subprocess.pathSearch("tee"),
++      arguments: [tempFile.path],
++      environment: {},
++      stderr: "pipe",
++    });
++    equal(
++      running.managed,
++      false,
++      "A process spawned by us is not externally managed"
++    );
++    let { getSubprocessImplForTest } = ChromeUtils.import(
++      "resource://gre/modules/Subprocess.jsm"
++    );
++    let worker = getSubprocessImplForTest().Process.getWorker();
++    let fds = await worker.call("getFds", [running.id]);
 +    let proc = await Subprocess.connectRunning(fds);
-+    equal(proc.id, 0, "Already running process id is 0");
++    greater(proc.id, 0, "Already running process id is valid");
 +    equal(proc.pid, 0, "Already running process pid is 0");
-+    greater(
-+      proc.stdin.id,
-+      0,
-+      "File descriptor (stdin) for already running process is valid"
++    equal(
++      proc.managed,
++      true,
++      "A process not spawned by us is externally managed"
 +    );
-+    greater(
-+      proc.stdout.id,
-+      0,
-+      "File descriptor (stdout) for already running process is valid"
++    Assert.throws(
++      () => proc.wait(),
++      /Cannot wait/,
++      "A process externally managed cannot be waited on"
 +    );
-+    greater(
-+      proc.stderr.id,
-+      0,
-+      "File descriptor (stderr) for already running process is valid"
++    Assert.throws(
++      () => proc.kill(),
++      /Cannot kill/,
++      "A process externally managed cannot be killed"
++    );
++    [proc.stdin, proc.stdout, proc.stderr].forEach((pipe, i) =>
++      greater(
++        pipe.id,
++        0,
++        "File descriptor (stdin) for already running process is valid"
++      )
++    );
++    let contents = "lorem ipsum";
++    let writeOp = proc.stdin.write(contents);
++    equal(
++      (await writeOp).bytesWritten,
++      contents.length,
++      "Contents correctly written to stdin"
++    );
++    let readOp = running.stdout.readString(contents.length);
++    equal(await readOp, contents, "Pipes communication is functional");
++    await running.kill();
++
++    ok(tempFile.exists(), "temp file was written to");
++    equal(
++      await IOUtils.readUTF8(tempFile.path),
++      contents,
++      "Contents correctly written to temp file"
 +    );
 +  } else {
-+    Assert.throws(() => Subprocess.connectRunning(fds), /Not implemented/);
++    Assert.throws(
++      () => Subprocess.connectRunning([42, 58, 63]),
++      /Not implemented/
++    );
 +  }
 +});
++
+ add_task(async function test_cleanup() {
+   let { getSubprocessImplForTest } = ChromeUtils.import(
+     "resource://gre/modules/Subprocess.jsm"
+   );
+ 
+diff --git a/widget/gtk/WidgetUtilsGtk.h b/widget/gtk/WidgetUtilsGtk.h
+--- a/widget/gtk/WidgetUtilsGtk.h
++++ b/widget/gtk/WidgetUtilsGtk.h
+@@ -46,10 +46,11 @@
+ }
+ 
+ enum class PortalKind {
+   FilePicker,
+   MimeHandler,
++  NativeMessaging,
+   Settings,
+   Location,
+   OpenUri,
+ };
+ bool ShouldUsePortal(PortalKind);
 diff --git a/widget/gtk/WidgetUtilsGtk.cpp b/widget/gtk/WidgetUtilsGtk.cpp
 --- a/widget/gtk/WidgetUtilsGtk.cpp
 +++ b/widget/gtk/WidgetUtilsGtk.cpp
-@@ -148,6 +148,8 @@ bool ShouldUsePortal(PortalKind aPortalK
+@@ -146,10 +146,12 @@
+         return StaticPrefs::widget_use_xdg_desktop_portal_file_picker();
+       case PortalKind::MimeHandler:
          // Mime portal breaks default browser handling, see bug 1516290.
          autoBehavior = IsRunningUnderFlatpakOrSnap();
          return StaticPrefs::widget_use_xdg_desktop_portal_mime_handler();
@@ -1618,14 +1828,6 @@ diff --git a/widget/gtk/WidgetUtilsGtk.cpp b/widget/gtk/WidgetUtilsGtk.cpp
        case PortalKind::Settings:
          autoBehavior = true;
          return StaticPrefs::widget_use_xdg_desktop_portal_settings();
-diff --git a/widget/gtk/WidgetUtilsGtk.h b/widget/gtk/WidgetUtilsGtk.h
---- a/widget/gtk/WidgetUtilsGtk.h
-+++ b/widget/gtk/WidgetUtilsGtk.h
-@@ -48,6 +48,7 @@ inline bool IsRunningUnderFlatpakOrSnap(
- enum class PortalKind {
-   FilePicker,
-   MimeHandler,
-+  NativeMessaging,
-   Settings,
-   Location,
-   OpenUri,
+       case PortalKind::Location:
+         return StaticPrefs::widget_use_xdg_desktop_portal_location();
+
