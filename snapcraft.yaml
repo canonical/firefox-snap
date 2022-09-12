@@ -1,12 +1,12 @@
 name: firefox
-version: "104.0.2-1"
+version: "105.0-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
 grade: stable
 base: core20
 assumes:
-  - snapd2.46 # for $SNAP_REAL_HOME
+  - snapd2.54 # for mount-control
 compression: lzo
 
 apps:
@@ -15,6 +15,7 @@ apps:
     desktop: firefox.desktop
     extensions: [gnome-3-38]
     environment:
+      DICPATH: "$SNAP_COMMON/snap-hunspell"
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: "$SNAP/usr/share/pipewire/pipewire.conf"
@@ -33,6 +34,7 @@ apps:
       - gsettings
       - hardware-observe
       - home
+      - host-hunspell
       - joystick
       - network
       - network-observe
@@ -59,6 +61,7 @@ apps:
       - gsettings
       - hardware-observe
       - home
+      - host-hunspell
       - joystick
       - network
       - network-observe
@@ -83,6 +86,17 @@ plugs:
   etc-firefox-policies:
     interface: system-files
     read: [/etc/firefox/policies]
+  hunspell-dictionaries:
+    interface: content
+    default-provider: hunspell-dictionaries-1-7-2004
+    target: $SNAP/usr/share/hunspell
+  host-hunspell:
+    interface: mount-control
+    mount:
+    - what: /usr/share/hunspell
+      where: $SNAP_COMMON/host-hunspell
+      persistent: true
+      options: [ro, bind, noatime, noexec]
 
 layout:
   /usr/share/libdrm:
@@ -95,7 +109,7 @@ parts:
       - wget
     override-pull: |
       # Do not use rustup to work around https://forum.snapcraft.io/t/armhf-builds-on-launchpad-timing-out/31008
-      REQUIRED_RUST_VERSION=1.61.0
+      REQUIRED_RUST_VERSION=1.63.0
       ROOT=https://static.rust-lang.org/dist/rust-$REQUIRED_RUST_VERSION
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         BINARIES_SUFFIX=x86_64-unknown-linux-gnu
@@ -123,8 +137,9 @@ parts:
       - libtinfo5
       - make
       - wget
+    build-environment:
+      - LLVM_RELEASE: "14.0.0"
     override-pull: |
-      LLVM_RELEASE=14.0.0
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
       BINARIES_BASENAME=clang+llvm-$LLVM_RELEASE
@@ -142,7 +157,7 @@ parts:
       fi
     override-build: |
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        cd llvm-*.src
+        cd llvm-$LLVM_RELEASE.src
         mkdir build
         cd build
         cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DLLVM_INCLUDE_BENCHMARKS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$SNAPCRAFT_PART_INSTALL/usr ..
@@ -151,7 +166,7 @@ parts:
     override-stage: |
       snapcraftctl stage
       mkdir -p usr
-      cp -R $SNAPCRAFT_PART_SRC/clang+llvm-*/* usr/
+      cp -R $SNAPCRAFT_PART_SRC/clang+llvm-$LLVM_RELEASE-*/* usr/
     override-prime: ''
 
   dump-syms:
@@ -188,17 +203,19 @@ parts:
       - clang
     build-packages:
       - wget
+    build-environment:
+      - WASI_BRANCH: "15"
+      - WASI_RELEASE: "15.0"
     override-pull: |
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        WASI_RELEASE=14.0
-        ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-14
+        ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$WASI_BRANCH
         wget $ROOT/wasi-sysroot-$WASI_RELEASE.tar.gz
         wget $ROOT/libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
       fi
     override-build: |
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        tar -C $SNAPCRAFT_STAGE -xf wasi-sysroot-*.tar.gz
-        tar -C $SNAPCRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-*.tar.gz
+        tar -C $SNAPCRAFT_STAGE -xf wasi-sysroot-$WASI_RELEASE.tar.gz
+        tar -C $SNAPCRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
       fi
     override-prime: ''
 
@@ -206,8 +223,9 @@ parts:
     plugin: nil
     build-packages:
       - wget
+    build-environment:
+      - NODEJS_RELEASE: "v16.17.0"
     override-pull: |
-      NODEJS_RELEASE=v16.15.1
       ROOT=https://nodejs.org/dist/$NODEJS_RELEASE/node-$NODEJS_RELEASE-linux-
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         SUFFIX=x64.tar.xz
@@ -218,7 +236,13 @@ parts:
       fi
       wget -O - $ROOT$SUFFIX | tar -x --xz
     override-build: |
-      cp -R node-*/ $SNAPCRAFT_PART_INSTALL/usr/
+      cp -R node-$NODEJS_RELEASE-linux-*/ $SNAPCRAFT_PART_INSTALL/usr/
+    override-prime: ''
+
+  mozconfig:
+    plugin: nil
+    override-stage: |
+      cp $SNAPCRAFT_PROJECT_DIR/mozconfig.in $SNAPCRAFT_STAGE/mozconfig
     override-prime: ''
 
   # Launchpad builders have a timeout for how long they are allowed to access
@@ -237,6 +261,7 @@ parts:
       - dump-syms
       - ffmpeg
       - firefox-langpacks
+      - mozconfig
       - nodejs
       - pipewire
       - rust
@@ -269,7 +294,7 @@ parts:
       cp toolkit/crashreporter/tools/upload_symbols.py $SNAPCRAFT_STAGE/debug-symbols/
     override-build: |
       QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
-      export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
+      export MOZCONFIG="$SNAPCRAFT_STAGE/mozconfig"
       BUILD_DBGSYMS=false
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         # Build and publish debug symbols for amd64 only, because Launchpad
@@ -458,12 +483,14 @@ parts:
 
   apikeys:
     plugin: nil
+    after:
+      - mozconfig
     build-packages:
       - coreutils
       - gpg
       - jq
     override-build: |
-      export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
+      MOZCONFIG="$SNAPCRAFT_STAGE/mozconfig"
       gpg -d --batch --passphrase "$(base64 -d $SNAPCRAFT_PROJECT_DIR/.passphrase)" -o apikeys $SNAPCRAFT_PROJECT_DIR/.apikeys
       cat apikeys | jq .MOZ_GOOGLE_LOCATION_SERVICE_API_KEY | tr -d '"' > $SNAPCRAFT_PART_INSTALL/gls-gapi.data
       echo "ac_add_options --with-google-location-service-api-keyfile=$SNAPCRAFT_STAGE/gls-gapi.data" >> $MOZCONFIG
