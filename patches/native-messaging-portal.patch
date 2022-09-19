@@ -25,11 +25,9 @@ diff --git a/modules/libpref/init/StaticPrefList.yaml b/modules/libpref/init/Sta
 diff --git a/python/mozbuild/mozbuild/mozinfo.py b/python/mozbuild/mozbuild/mozinfo.py
 --- a/python/mozbuild/mozbuild/mozinfo.py
 +++ b/python/mozbuild/mozbuild/mozinfo.py
-@@ -143,10 +143,13 @@
-         d.get("buildapp", "") == "mobile/android"
-         and "MOZ_ANDROID_MIN_SDK_VERSION" in substs
-     ):
-         d["android_min_sdk"] = substs["MOZ_ANDROID_MIN_SDK_VERSION"]
+@@ -148,6 +148,9 @@ def build_dict(config, env=os.environ):
+ 
+     d["is_ubuntu"] = "Ubuntu" in platform.version()
  
 +    if "MOZ_ENABLE_DBUS" in substs:
 +        d["dbus_enabled"] = bool(substs.get("MOZ_ENABLE_DBUS"))
