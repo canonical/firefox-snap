@@ -87,10 +87,6 @@ plugs:
   etc-firefox:
     interface: system-files
     read: [/etc/firefox]
-  hunspell-dictionaries:
-    interface: content
-    default-provider: hunspell-dictionaries-1-7-2004
-    target: $SNAP/usr/share/hunspell
   host-hunspell:
     interface: mount-control
     mount:
@@ -209,6 +205,28 @@ parts:
         cp target/release/dump_syms $SNAPCRAFT_STAGE/usr/bin/
       fi
 
+  # This is a temporary workaround to including the hunspell content
+  # snap, which would cause breakage in the Ubuntu desktop image build
+  # because of the Ubuntu policy.  See:
+  # https://bugzilla.mozilla.org/show_bug.cgi?id=1792006
+  #
+  # The definition of this part is essentially a copy of the
+  # corresponding part in hunspell-dictionaries-1-7-2004 by
+  # Buo-ren, Lin.
+  hunspell:
+    plugin: nil
+    override-build: |
+      set -eu
+      apt download $(apt-cache search '^hunspell-.*$' |
+        awk '!/myspell|dbgsym|tools|transitional|dependency/{printf "%s ", $1}')
+      find . -name "*.deb" -exec dpkg-deb -x {} "$SNAPCRAFT_PART_INSTALL" \;
+    filesets:
+      hunspell-dictionaries: [usr/share/hunspell]
+    stage:
+      - $hunspell-dictionaries
+    prime:
+      - $hunspell-dictionaries
+
   # We use the amd64 binary for all architectures since the used files are said
   # to be arch-independent.
   wasi-sdk:
@@ -271,6 +289,7 @@ parts:
       - dump-syms
       - ffmpeg
       - firefox-langpacks
+      - hunspell
       - mozconfig
       - nodejs
       - pipewire
