@@ -198,6 +198,8 @@ parts:
         cp target/release/dump_syms $SNAPCRAFT_STAGE/usr/bin/
       fi
 
+  # We use the amd64 binary for all architectures since the used files are said
+  # to be arch-independent.
   wasi-sdk:
     plugin: nil
     after:
@@ -208,16 +210,12 @@ parts:
       - WASI_BRANCH: "15"
       - WASI_RELEASE: "15.0"
     override-pull: |
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$WASI_BRANCH
-        wget $ROOT/wasi-sysroot-$WASI_RELEASE.tar.gz
-        wget $ROOT/libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
-      fi
+      ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$WASI_BRANCH
+      wget $ROOT/wasi-sysroot-$WASI_RELEASE.tar.gz
+      wget $ROOT/libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
     override-build: |
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        tar -C $SNAPCRAFT_STAGE -xf wasi-sysroot-$WASI_RELEASE.tar.gz
-        tar -C $SNAPCRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
-      fi
+      tar -C $SNAPCRAFT_STAGE -xf wasi-sysroot-$WASI_RELEASE.tar.gz
+      tar -C $SNAPCRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
     override-prime: ''
 
   nodejs:
@@ -322,12 +320,8 @@ parts:
       fi
       GNOME_SDK_SNAP=/snap/gnome-3-38-2004-sdk/current
       export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        export WASI_SYSROOT=$SNAPCRAFT_STAGE/wasi-sysroot
-        export WASM_SANDBOXED_LIBRARIES=graphite,ogg,hunspell
-      else
-        echo "ac_add_options --without-wasm-sandboxed-libraries" >> $MOZCONFIG
-      fi
+      export WASI_SYSROOT=$SNAPCRAFT_STAGE/wasi-sysroot
+      export WASM_SANDBOXED_LIBRARIES=graphite,ogg,hunspell
       export MOZBUILD_STATE_PATH=$SNAPCRAFT_PART_BUILD/.mozbuild
       unset PYTHONPATH
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
