@@ -321,7 +321,6 @@ parts:
       GNOME_SDK_SNAP=/snap/gnome-3-38-2004-sdk/current
       export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
       export WASI_SYSROOT=$SNAPCRAFT_STAGE/wasi-sysroot
-      export WASM_SANDBOXED_LIBRARIES=graphite,ogg,hunspell
       export MOZBUILD_STATE_PATH=$SNAPCRAFT_PART_BUILD/.mozbuild
       unset PYTHONPATH
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
