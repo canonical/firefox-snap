@@ -84,9 +84,9 @@ plugs:
   dot-mozilla-firefox:
     interface: personal-files
     read: [$HOME/.mozilla/firefox]
-  etc-firefox-policies:
+  etc-firefox:
     interface: system-files
-    read: [/etc/firefox/policies]
+    read: [/etc/firefox]
   hunspell-dictionaries:
     interface: content
     default-provider: hunspell-dictionaries-1-7-2004
