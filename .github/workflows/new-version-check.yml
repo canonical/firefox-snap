@@ -10,7 +10,7 @@ jobs:
   check-new-stable:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           ref: stable
           persist-credentials: false
@@ -42,7 +42,7 @@ jobs:
   check-new-esr:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           ref: esr
           persist-credentials: false
@@ -74,7 +74,7 @@ jobs:
   check-new-beta:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           ref: beta
           persist-credentials: false
