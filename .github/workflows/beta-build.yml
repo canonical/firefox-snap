@@ -16,7 +16,7 @@ jobs:
   beta-snap:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           ref: beta
       - name: Extract current version
