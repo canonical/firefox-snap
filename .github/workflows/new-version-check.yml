@@ -15,29 +15,25 @@ jobs:
           ref: stable
           persist-credentials: false
       - name: Extract current version
-        id: extract-current-version-stable
         run: ./.github/scripts/extract-current-version.sh
       - name: Install python deps
         run: sudo apt update && sudo apt install python3-lxml python3-packaging
       - name: Fetch new version
-        id: fetch-new-version-stable
         run: |
-          version=$(./.github/scripts/check-new-version.py release ${{ steps.extract-current-version-stable.outputs.version }})
-          echo "::set-output name=version::$version"
+          version=$(./.github/scripts/check-new-version.py release ${{ env.current_version }})
+          echo "new_version=$version" >> $GITHUB_ENV
       - name: Update snapcraft.yaml with the new version
-        if: steps.fetch-new-version-stable.outputs.version
+        if: env.new_version
         run: |
-          old_version=${{ steps.extract-current-version-stable.outputs.version }}
-          new_version=${{ steps.fetch-new-version-stable.outputs.version }}
-          if [ $(echo $old_version | cut -d. -f1) = $(echo $new_version | cut -d. -f1) ]; then
-            sed -i "s/^version: \"\(.*\)\"$/version: \"$new_version\"/" snapcraft.yaml
+          if [ $(echo ${{ env.current_version }} | cut -d. -f1) = $(echo ${{ env.new_version }} | cut -d. -f1) ]; then
+            sed -i "s/^version: \"\(.*\)\"$/version: \"${{ env.new_version }}\"/" snapcraft.yaml
             git add snapcraft.yaml
             git config user.name "GitHub Actions"
             git config user.email "actions@github.com"
-            git commit -m "Bump version to the latest release candidate ($new_version)."
+            git commit -m "Bump version to the latest release candidate (${{ env.new_version }})."
             git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git stable
           else
-            echo "New major version ($new_version), please merge the beta branch into the stable one."
+            echo "New major version (${{ env.new_version }}), please merge the beta branch into the stable one."
           fi
   check-new-esr:
     runs-on: ubuntu-20.04
@@ -47,29 +43,25 @@ jobs:
           ref: esr
           persist-credentials: false
       - name: Extract current version
-        id: extract-current-version-esr
         run: ./.github/scripts/extract-current-version.sh
       - name: Install python deps
         run: sudo apt update && sudo apt install python3-lxml python3-packaging
       - name: Fetch new version
-        id: fetch-new-version-esr
         run: |
-          version=$(./.github/scripts/check-new-version.py esr ${{ steps.extract-current-version-esr.outputs.version }})
-          echo "::set-output name=version::$version"
+          version=$(./.github/scripts/check-new-version.py esr ${{ env.current_version }})
+          echo "new_version=$version" >> $GITHUB_ENV
       - name: Update snapcraft.yaml with the new version
-        if: steps.fetch-new-version-esr.outputs.version
+        if: env.new_version
         run: |
-          old_version=${{ steps.extract-current-version-esr.outputs.version }}
-          new_version=${{ steps.fetch-new-version-esr.outputs.version }}
-          if [ $(echo $old_version | cut -d. -f1) = $(echo $new_version | cut -d. -f1) ]; then
-            sed -i "s/^version: \"\(.*\)\"$/version: \"$new_version\"/" snapcraft.yaml
+          if [ $(echo ${{ env.current_version }} | cut -d. -f1) = $(echo ${{ env.new_version }} | cut -d. -f1) ]; then
+            sed -i "s/^version: \"\(.*\)\"$/version: \"${{ env.new_version }}\"/" snapcraft.yaml
             git add snapcraft.yaml
             git config user.name "GitHub Actions"
             git config user.email "actions@github.com"
-            git commit -m "Bump version to the latest ESR release ($new_version)."
+            git commit -m "Bump version to the latest ESR release (${{ env.new_version }})."
             git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git esr
           else
-            echo "New major version ($new_version), please proceed to a manual update."
+            echo "New major version (${{ env.new_version }}), please proceed to a manual update."
           fi
   check-new-beta:
     runs-on: ubuntu-20.04
@@ -79,22 +71,19 @@ jobs:
           ref: beta
           persist-credentials: false
       - name: Extract current version
-        id: extract-current-version-beta
         run: ./.github/scripts/extract-current-version.sh
       - name: Install python deps
         run: sudo apt update && sudo apt install python3-lxml python3-packaging
       - name: Fetch new version
-        id: fetch-new-version-beta
         run: |
-          version=$(./.github/scripts/check-new-version.py beta ${{ steps.extract-current-version-beta.outputs.version }})
-          echo "::set-output name=version::$version"
+          version=$(./.github/scripts/check-new-version.py beta ${{ env.current_version }})
+          echo "new_version=$version" >> $GITHUB_ENV
       - name: Update snapcraft.yaml with the new version
-        if: steps.fetch-new-version-beta.outputs.version
+        if: env.new_version
         run: |
-          version=${{ steps.fetch-new-version-beta.outputs.version }}
-          sed -i "s/^version: \"\(.*\)\"$/version: \"$version\"/" snapcraft.yaml
+          sed -i "s/^version: \"\(.*\)\"$/version: \"${{ env.new_version }}\"/" snapcraft.yaml
           git add snapcraft.yaml
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git commit -m "Bump version to the latest beta ($version)."
+          git commit -m "Bump version to the latest beta (${{ env.new_version }})."
           git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git beta
