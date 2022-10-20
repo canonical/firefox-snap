@@ -39,12 +39,11 @@ jobs:
           sudo chown $USER /run/user/$UID
       - name: Install the snap from the store and run some basic tests
         run: |
-          version=${{ steps.extract-current-version.outputs.version }}
           sudo snap install firefox --edge
           channel=$(snap info firefox | grep tracking: | cut -d: -f2 | xargs)
           [ $channel = "latest/edge" ]
           installed=$(snap info firefox | grep installed: | cut -d: -f2 | xargs | cut -d' ' -f1)
-          [ $installed = $version ]
+          [ $installed = ${{ env.current_version }} ]
           runtimeversion=$(snap run firefox --version)
           snap run firefox --headless --marionette &
           pid=$!
