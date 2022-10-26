@@ -218,8 +218,9 @@ parts:
         MOZ_SOURCE_STAMP=$(echo $FFINFO | jq -r .moz_source_stamp)
         FETCHES=$MOZ_SOURCE_REPO/raw-file/$MOZ_SOURCE_STAMP/taskcluster/ci/fetch/toolchains.yml
         TOOLCHAINS=$(curl -sSL "${FETCHES}")
-        REPO=$(echo "${TOOLCHAINS}" | python3 -c 'import yaml, sys; fetches = yaml.safe_load(sys.stdin); print("{}".format(fetches["dump-syms"]["fetch"]["repo"]))')
-        SHA1=$(echo "${TOOLCHAINS}" | python3 -c 'import yaml, sys; fetches = yaml.safe_load(sys.stdin); print("{}".format(fetches["dump-syms"]["fetch"]["revision"]))')
+        unset PYTHONPATH
+        REPO=$(echo "${TOOLCHAINS}" | /usr/bin/python3 -c 'import yaml, sys; fetches = yaml.safe_load(sys.stdin); print("{}".format(fetches["dump-syms"]["fetch"]["repo"]))')
+        SHA1=$(echo "${TOOLCHAINS}" | /usr/bin/python3 -c 'import yaml, sys; fetches = yaml.safe_load(sys.stdin); print("{}".format(fetches["dump-syms"]["fetch"]["revision"]))')
         git clone "${REPO}" . && git checkout "${SHA1}"
       fi
     override-build: |
