@@ -376,7 +376,7 @@ parts:
       if [ $CRAFT_TARGET_ARCH != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
       fi
-      GNOME_SDK_SNAP=/snap/gnome-3-38-2004-sdk/current
+      GNOME_SDK_SNAP=/snap/gnome-42-2204-sdk/current
       export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
       export WASI_SYSROOT=$CRAFT_STAGE/wasi-sysroot
       export MOZBUILD_STATE_PATH=$CRAFT_PART_BUILD/.mozbuild
