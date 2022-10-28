@@ -384,6 +384,9 @@ parts:
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # Needed for PGO-enabled builds that execute the built binaries. This should mirror the link paths in $LDFLAGS.
         export LD_LIBRARY_PATH=$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET:$GNOME_SDK_SNAP/usr/lib
+        # Ensure the instrumented binary is run against the right version of libssl3.so and libnss3.so
+        # (locally-built versions are more recent than the ones in the gnome platform snap)
+        export LD_LIBRARY_PATH=$CRAFT_PART_BUILD/obj-x86_64-pc-linux-gnu/instrumented/dist/bin:$LD_LIBRARY_PATH
       else
         unset LD_LIBRARY_PATH
       fi
