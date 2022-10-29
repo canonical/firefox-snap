@@ -1,9 +1,6 @@
-diff --git a/modules/libpref/init/StaticPrefList.yaml b/modules/libpref/init/StaticPrefList.yaml
 --- a/modules/libpref/init/StaticPrefList.yaml
 +++ b/modules/libpref/init/StaticPrefList.yaml
-@@ -14023,10 +14023,20 @@
- - name: widget.use-xdg-desktop-portal.mime-handler
-   type: int32_t
+@@ -14448,6 +14448,16 @@
    value: 2
    mirror: always
  
@@ -20,9 +17,6 @@ diff --git a/modules/libpref/init/StaticPrefList.yaml b/modules/libpref/init/Sta
  # Whether to try to use XDG portal for settings / look-and-feel information.
  # https://flatpak.github.io/xdg-desktop-portal/#gdbus-org.freedesktop.portal.Settings
  #  - 0: never
- #  - 1: always
- #  - 2: auto
-diff --git a/python/mozbuild/mozbuild/mozinfo.py b/python/mozbuild/mozbuild/mozinfo.py
 --- a/python/mozbuild/mozbuild/mozinfo.py
 +++ b/python/mozbuild/mozbuild/mozinfo.py
 @@ -148,6 +148,9 @@ def build_dict(config, env=os.environ):
@@ -35,14 +29,9 @@ diff --git a/python/mozbuild/mozbuild/mozinfo.py b/python/mozbuild/mozbuild/mozi
      return d
  
  
- def write_mozinfo(file, config, env=os.environ):
-     """Write JSON data about the configuration specified in config and an
-diff --git a/testing/mozharness/configs/unittests/linux_unittest.py b/testing/mozharness/configs/unittests/linux_unittest.py
 --- a/testing/mozharness/configs/unittests/linux_unittest.py
 +++ b/testing/mozharness/configs/unittests/linux_unittest.py
-@@ -32,11 +32,16 @@
-     VALGRIND_SUPP_ARCH = os.path.join(VALGRIND_SUPP_DIR, "i386-pc-linux-gnu.sup")
- 
+@@ -34,7 +34,12 @@ else:
  #####
  config = {
      ###
@@ -56,15 +45,10 @@ diff --git a/testing/mozharness/configs/unittests/linux_unittest.py b/testing/mo
      "installer_path": INSTALLER_PATH,
      "binary_path": BINARY_PATH,
      "xpcshell_name": XPCSHELL_NAME,
-     "http3server_name": HTTP3SERVER_NAME,
-     "exe_suffix": EXE_SUFFIX,
-diff --git a/toolkit/components/extensions/NativeMessaging.jsm b/toolkit/components/extensions/NativeMessaging.jsm
 --- a/toolkit/components/extensions/NativeMessaging.jsm
 +++ b/toolkit/components/extensions/NativeMessaging.jsm
-@@ -29,10 +29,17 @@
-   NativeManifests: "resource://gre/modules/NativeManifests.jsm",
+@@ -34,6 +34,13 @@ XPCOMUtils.defineLazyModuleGetters(lazy,
    OS: "resource://gre/modules/osfile.jsm",
-   Subprocess: "resource://gre/modules/Subprocess.jsm",
  });
  
 +XPCOMUtils.defineLazyServiceGetter(
@@ -77,11 +61,7 @@ diff --git a/toolkit/components/extensions/NativeMessaging.jsm b/toolkit/compone
  // For a graceful shutdown (i.e., when the extension is unloaded or when it
  // explicitly calls disconnect() on a native port), how long we give the native
  // application to exit before we start trying to kill it.  (in milliseconds)
- const GRACEFUL_SHUTDOWN_TIME = 3000;
- 
-@@ -69,10 +76,18 @@
-     this.proc = null;
-     this.readPromise = null;
+@@ -74,6 +81,14 @@ var NativeApp = class extends EventEmitt
      this.sendQueue = [];
      this.writePromise = null;
      this.cleanupStarted = false;
@@ -96,11 +76,7 @@ diff --git a/toolkit/components/extensions/NativeMessaging.jsm b/toolkit/compone
  
      this.startupPromise = lazy.NativeManifests.lookupManifest(
        "stdio",
-       application,
-       context
-@@ -117,10 +132,58 @@
-         Cu.reportError(err instanceof Error ? err : err.message);
-         this._cleanup(err);
+@@ -124,6 +139,54 @@ var NativeApp = class extends EventEmitt
        });
    }
  
@@ -155,11 +131,7 @@ diff --git a/toolkit/components/extensions/NativeMessaging.jsm b/toolkit/compone
    /**
     * Open a connection to a native messaging host.
     * @param {number} portId A unique internal ID that identifies the port.
-    * @param {NativeMessenger} port Parent NativeMessenger used to send messages.
-    * @returns {ParentPort}
-@@ -285,10 +348,19 @@
-       this.emit("disconnect", err);
-     }
+@@ -292,6 +355,15 @@ var NativeApp = class extends EventEmitt
  
      await this.startupPromise;
  
@@ -175,10 +147,6 @@ diff --git a/toolkit/components/extensions/NativeMessaging.jsm b/toolkit/compone
      if (!this.proc) {
        // Failed to initialize proc in the constructor.
        return;
-     }
- 
-diff --git a/toolkit/components/extensions/NativeMessagingPortal.h b/toolkit/components/extensions/NativeMessagingPortal.h
-new file mode 100644
 --- /dev/null
 +++ b/toolkit/components/extensions/NativeMessagingPortal.h
 @@ -0,0 +1,74 @@
@@ -256,8 +224,6 @@ new file mode 100644
 +}  // namespace mozilla::extensions
 +
 +#endif  // mozilla_extensions_NativeMessagingPortal_h
-diff --git a/toolkit/components/extensions/NativeMessagingPortal.cpp b/toolkit/components/extensions/NativeMessagingPortal.cpp
-new file mode 100644
 --- /dev/null
 +++ b/toolkit/components/extensions/NativeMessagingPortal.cpp
 @@ -0,0 +1,619 @@
@@ -880,12 +846,9 @@ new file mode 100644
 +}
 +
 +}  // namespace mozilla::extensions
-diff --git a/toolkit/components/extensions/components.conf b/toolkit/components/extensions/components.conf
 --- a/toolkit/components/extensions/components.conf
 +++ b/toolkit/components/extensions/components.conf
-@@ -12,5 +12,17 @@
-         'constructor': 'mozilla::extensions::ExtensionsChild::GetSingleton',
-         'headers': ['mozilla/extensions/ExtensionsChild.h'],
+@@ -14,3 +14,15 @@ Classes = [
          'categories': {'app-startup': 'ExtensionsChild'},
      },
  ]
@@ -901,12 +864,9 @@ diff --git a/toolkit/components/extensions/components.conf b/toolkit/components/
 +            'headers': ['mozilla/extensions/NativeMessagingPortal.h'],
 +        },
 +    ]
-diff --git a/toolkit/components/extensions/moz.build b/toolkit/components/extensions/moz.build
 --- a/toolkit/components/extensions/moz.build
 +++ b/toolkit/components/extensions/moz.build
-@@ -72,10 +72,11 @@
- 
- XPIDL_SOURCES += [
+@@ -74,6 +74,7 @@ XPIDL_SOURCES += [
      "extIWebNavigation.idl",
      "mozIExtensionAPIRequestHandling.idl",
      "mozIExtensionProcessScript.idl",
@@ -914,11 +874,7 @@ diff --git a/toolkit/components/extensions/moz.build b/toolkit/components/extens
  ]
  
  XPIDL_MODULE = "webextensions"
- 
- EXPORTS.mozilla = [
-@@ -98,10 +99,17 @@
-     "ExtensionsParent.cpp",
-     "MatchPattern.cpp",
+@@ -100,6 +101,13 @@ UNIFIED_SOURCES += [
      "WebExtensionPolicy.cpp",
  ]
  
@@ -932,10 +888,6 @@ diff --git a/toolkit/components/extensions/moz.build b/toolkit/components/extens
  XPCOM_MANIFESTS += [
      "components.conf",
  ]
- 
- FINAL_LIBRARY = "xul"
-diff --git a/toolkit/components/extensions/nsINativeMessagingPortal.idl b/toolkit/components/extensions/nsINativeMessagingPortal.idl
-new file mode 100644
 --- /dev/null
 +++ b/toolkit/components/extensions/nsINativeMessagingPortal.idl
 @@ -0,0 +1,71 @@
@@ -1010,12 +962,9 @@ new file mode 100644
 +  [implicit_jscontext]
 +  Promise start(in ACString aHandle, in ACString aName, in ACString aExtension);
 +};
-diff --git a/toolkit/components/extensions/test/xpcshell/native_messaging.ini b/toolkit/components/extensions/test/xpcshell/native_messaging.ini
 --- a/toolkit/components/extensions/test/xpcshell/native_messaging.ini
 +++ b/toolkit/components/extensions/test/xpcshell/native_messaging.ini
-@@ -13,6 +13,9 @@
-   (os == "win" && processor == "aarch64") # bug 1530841
-   apple_silicon # bug 1729540
+@@ -15,4 +15,7 @@ skip-if =
  run-sequentially = very high failure rate in parallel
  [test_ext_native_messaging_perf.js]
  skip-if = tsan # Unreasonably slow, bug 1612707
@@ -1023,8 +972,6 @@ diff --git a/toolkit/components/extensions/test/xpcshell/native_messaging.ini b/
 +run-if = (os == 'linux' && toolkit == 'gtk' && dbus_enabled)
 +tags = portal
  [test_ext_native_messaging_unresponsive.js]
-diff --git a/toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js b/toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js
-new file mode 100644
 --- /dev/null
 +++ b/toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js
 @@ -0,0 +1,380 @@
@@ -1037,7 +984,7 @@ new file mode 100644
 +ChromeUtils.defineModuleGetter(
 +  lazy,
 +  "Subprocess",
-+  "resource://gre/modules/Subprocess.jsm"
++  "resource://gre/modules/Subprocess.sys.mjs"
 +);
 +
 +AddonTestUtils.init(this);
@@ -1408,12 +1355,9 @@ new file mode 100644
 +
 +  await extension.unload();
 +});
-diff --git a/toolkit/modules/subprocess/Subprocess.jsm b/toolkit/modules/subprocess/Subprocess.jsm
---- a/toolkit/modules/subprocess/Subprocess.jsm
-+++ b/toolkit/modules/subprocess/Subprocess.jsm
-@@ -202,10 +202,23 @@
-     // Promise.resolve lets us get around returning one of the Promise.jsm
-     // pseudo-promises returned by Task.jsm.
+--- a/toolkit/modules/subprocess/Subprocess.sys.mjs
++++ b/toolkit/modules/subprocess/Subprocess.sys.mjs
+@@ -190,6 +190,19 @@ export var Subprocess = {
      let path = lazy.SubprocessImpl.pathSearch(command, environment);
      return Promise.resolve(path);
    },
@@ -1433,14 +1377,9 @@ diff --git a/toolkit/modules/subprocess/Subprocess.jsm b/toolkit/modules/subproc
  };
  
  Object.assign(Subprocess, SubprocessConstants);
- Object.freeze(Subprocess);
- 
-diff --git a/toolkit/modules/subprocess/subprocess_common.jsm b/toolkit/modules/subprocess/subprocess_common.jsm
---- a/toolkit/modules/subprocess/subprocess_common.jsm
-+++ b/toolkit/modules/subprocess/subprocess_common.jsm
-@@ -587,17 +587,26 @@
-      *           The process ID of the process, assigned by the operating system.
-      *           @readonly
+--- a/toolkit/modules/subprocess/subprocess_common.sys.mjs
++++ b/toolkit/modules/subprocess/subprocess_common.sys.mjs
+@@ -585,13 +585,22 @@ export class BaseProcess {
       */
      this.pid = pid;
  
@@ -1467,11 +1406,7 @@ diff --git a/toolkit/modules/subprocess/subprocess_common.jsm b/toolkit/modules/
      });
  
      if (fds[0] !== undefined) {
-       /**
-        * @property {OutputPipe} stdin
-@@ -641,10 +650,18 @@
-     return worker.call("spawn", [options]).then(({ processId, fds, pid }) => {
-       return new this(worker, processId, fds, pid);
+@@ -639,6 +648,14 @@ export class BaseProcess {
      });
    }
  
@@ -1486,11 +1421,7 @@ diff --git a/toolkit/modules/subprocess/subprocess_common.jsm b/toolkit/modules/
    static get WORKER_URL() {
      throw new Error("Not implemented");
    }
- 
-   static get WorkerClass() {
-@@ -678,10 +695,14 @@
-    * @returns {Promise<object>}
-    *          Resolves to an object with an `exitCode` property when the process
+@@ -676,6 +693,10 @@ export class BaseProcess {
     *          has exited.
     */
    kill(timeout = 300) {
@@ -1501,11 +1432,7 @@ diff --git a/toolkit/modules/subprocess/subprocess_common.jsm b/toolkit/modules/
      // If the process has already exited, don't bother sending a signal.
      if (this.exitCode != null) {
        return this.wait();
-     }
- 
-@@ -712,8 +733,11 @@
-    * value of the error code. On Windows, an exit code of -9 indicates
-    * that the process was killed via the {@linkcode BaseProcess#kill kill()}
+@@ -710,6 +731,9 @@ export class BaseProcess {
     * method.
     */
    wait() {
@@ -1515,12 +1442,9 @@ diff --git a/toolkit/modules/subprocess/subprocess_common.jsm b/toolkit/modules/
      return this.exitPromise;
    }
  }
-diff --git a/toolkit/modules/subprocess/subprocess_unix.jsm b/toolkit/modules/subprocess/subprocess_unix.jsm
---- a/toolkit/modules/subprocess/subprocess_unix.jsm
-+++ b/toolkit/modules/subprocess/subprocess_unix.jsm
-@@ -198,8 +198,12 @@
-     }
-     let error = new Error(`Executable not found: ${bin}`);
+--- a/toolkit/modules/subprocess/subprocess_unix.sys.mjs
++++ b/toolkit/modules/subprocess/subprocess_unix.sys.mjs
+@@ -198,6 +198,10 @@ var SubprocessUnix = {
      error.errorCode = SubprocessConstants.ERROR_BAD_EXECUTABLE;
      throw error;
    },
@@ -1530,13 +1454,10 @@ diff --git a/toolkit/modules/subprocess/subprocess_unix.jsm b/toolkit/modules/su
 +  },
  };
  
- var SubprocessImpl = SubprocessUnix;
-diff --git a/toolkit/modules/subprocess/subprocess_win.jsm b/toolkit/modules/subprocess/subprocess_win.jsm
---- a/toolkit/modules/subprocess/subprocess_win.jsm
-+++ b/toolkit/modules/subprocess/subprocess_win.jsm
-@@ -186,8 +186,14 @@
-     }
-     let error = new Error(`Executable not found: ${bin}`);
+ export var SubprocessImpl = SubprocessUnix;
+--- a/toolkit/modules/subprocess/subprocess_win.sys.mjs
++++ b/toolkit/modules/subprocess/subprocess_win.sys.mjs
+@@ -183,6 +183,12 @@ var SubprocessWin = {
      error.errorCode = SubprocessConstants.ERROR_BAD_EXECUTABLE;
      throw error;
    },
@@ -1548,13 +1469,10 @@ diff --git a/toolkit/modules/subprocess/subprocess_win.jsm b/toolkit/modules/sub
 +  },
  };
  
- var SubprocessImpl = SubprocessWin;
-diff --git a/toolkit/modules/subprocess/subprocess_worker_common.js b/toolkit/modules/subprocess/subprocess_worker_common.js
+ export var SubprocessImpl = SubprocessWin;
 --- a/toolkit/modules/subprocess/subprocess_worker_common.js
 +++ b/toolkit/modules/subprocess/subprocess_worker_common.js
-@@ -57,11 +57,15 @@
-     });
- 
+@@ -59,7 +59,11 @@ class BaseProcess {
      this.pid = null;
      this.pipes = [];
  
@@ -1567,11 +1485,7 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_common.js b/toolkit/mo
    }
  
    /**
-    * Waits for the process to exit and all of its pending IO operations to
-    * complete.
-@@ -94,20 +98,33 @@
- 
-     return pipe.close(force).then(() => ({ data: {} }));
+@@ -96,6 +100,7 @@ let requests = {
    },
  
    spawn(options) {
@@ -1579,10 +1493,7 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_common.js b/toolkit/mo
      let process = new Process(options);
      let processId = process.id;
  
-     io.addProcess(process);
- 
-     let fds = process.pipes.map(pipe => pipe.id);
- 
+@@ -106,6 +111,18 @@ let requests = {
      return { data: { processId, fds, pid: process.pid } };
    },
  
@@ -1601,11 +1512,7 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_common.js b/toolkit/mo
    kill(processId, force = false) {
      let process = io.getProcess(processId);
  
-     process.kill(force ? 9 : 15);
- 
-@@ -160,10 +177,22 @@
-   waitForNoProcesses() {
-     return Promise.all(
+@@ -162,6 +179,18 @@ let requests = {
        Array.from(io.processes.values(), proc => proc.awaitFinished())
      );
    },
@@ -1624,21 +1531,16 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_common.js b/toolkit/mo
  };
  
  onmessage = event => {
-   io.messageCount--;
- 
-diff --git a/toolkit/modules/subprocess/subprocess_worker_unix.js b/toolkit/modules/subprocess/subprocess_worker_unix.js
 --- a/toolkit/modules/subprocess/subprocess_worker_unix.js
 +++ b/toolkit/modules/subprocess/subprocess_worker_unix.js
-@@ -404,10 +404,26 @@
-       }
-     }
+@@ -407,6 +407,22 @@ class Process extends BaseProcess {
    }
  
    /**
 +   * Connect to an already running process that was spawned externally.
 +   *
 +   * @param {object} options
-+            An object with a 'fds' attribute that's an array 
++            An object with a 'fds' attribute that's an array
 +            of file descriptors (stdin, stdout and stderr).
 +   */
 +  connectRunning(options) {
@@ -1654,11 +1556,7 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_unix.js b/toolkit/modu
     * Called when input is available on our sentinel file descriptor.
     *
     * @see pollEvents
-    */
-   onReady() {
-@@ -455,11 +471,13 @@
-       this.exitCode = -sig;
-     } else {
+@@ -458,7 +474,9 @@ class Process extends BaseProcess {
        this.exitCode = unix.WEXITSTATUS(status.value);
      }
  
@@ -1669,11 +1567,7 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_unix.js b/toolkit/modu
      io.updatePollFds();
      this.resolveExit(this.exitCode);
      return this.exitCode;
-   }
- }
-@@ -519,11 +537,13 @@
- 
-   updatePollFds() {
+@@ -522,7 +540,9 @@ io = {
      let handlers = [
        this.signal,
        ...this.pipes.values(),
@@ -1684,14 +1578,9 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_unix.js b/toolkit/modu
      ];
  
      handlers = handlers.filter(handler => handler.pollEvents);
- 
-     // Our poll loop is only useful if we've got at least 1 thing to poll other than our own
-diff --git a/toolkit/modules/subprocess/subprocess_worker_win.js b/toolkit/modules/subprocess/subprocess_worker_win.js
 --- a/toolkit/modules/subprocess/subprocess_worker_win.js
 +++ b/toolkit/modules/subprocess/subprocess_worker_win.js
-@@ -603,10 +603,16 @@
- 
-     libc.ResumeThread(procInfo.hThread);
+@@ -606,6 +606,12 @@ class Process extends BaseProcess {
      libc.CloseHandle(procInfo.hThread);
    }
  
@@ -1704,14 +1593,9 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_win.js b/toolkit/modul
    /**
     * Called when our process handle is signaled as active, meaning the process
     * has exited.
-    */
-   onReady() {
-diff --git a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js b/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
 --- a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
 +++ b/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
-@@ -854,10 +854,87 @@
-     },
-     "Subprocess.call should fail for a bad executable"
+@@ -858,6 +858,83 @@ add_task(async function test_bad_executa
    );
  });
  
@@ -1738,7 +1622,7 @@ diff --git a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js b/toolk
 +      "A process spawned by us is not externally managed"
 +    );
 +    let { getSubprocessImplForTest } = ChromeUtils.import(
-+      "resource://gre/modules/Subprocess.jsm"
++      "resource://gre/modules/Subprocess.sys.mjs"
 +    );
 +    let worker = getSubprocessImplForTest().Process.getWorker();
 +    let fds = await worker.call("getFds", [running.id]);
@@ -1793,16 +1677,11 @@ diff --git a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js b/toolk
 +});
 +
  add_task(async function test_cleanup() {
-   let { getSubprocessImplForTest } = ChromeUtils.import(
-     "resource://gre/modules/Subprocess.jsm"
-   );
- 
-diff --git a/widget/gtk/WidgetUtilsGtk.h b/widget/gtk/WidgetUtilsGtk.h
+   let { getSubprocessImplForTest } = ChromeUtils.importESModule(
+     "resource://gre/modules/Subprocess.sys.mjs"
 --- a/widget/gtk/WidgetUtilsGtk.h
 +++ b/widget/gtk/WidgetUtilsGtk.h
-@@ -46,10 +46,11 @@
- }
- 
+@@ -50,6 +50,7 @@ inline bool IsRunningUnderFlatpakOrSnap(
  enum class PortalKind {
    FilePicker,
    MimeHandler,
@@ -1810,14 +1689,9 @@ diff --git a/widget/gtk/WidgetUtilsGtk.h b/widget/gtk/WidgetUtilsGtk.h
    Settings,
    Location,
    OpenUri,
- };
- bool ShouldUsePortal(PortalKind);
-diff --git a/widget/gtk/WidgetUtilsGtk.cpp b/widget/gtk/WidgetUtilsGtk.cpp
 --- a/widget/gtk/WidgetUtilsGtk.cpp
 +++ b/widget/gtk/WidgetUtilsGtk.cpp
-@@ -146,10 +146,12 @@
-         return StaticPrefs::widget_use_xdg_desktop_portal_file_picker();
-       case PortalKind::MimeHandler:
+@@ -159,6 +159,8 @@ bool ShouldUsePortal(PortalKind aPortalK
          // Mime portal breaks default browser handling, see bug 1516290.
          autoBehavior = IsRunningUnderFlatpakOrSnap();
          return StaticPrefs::widget_use_xdg_desktop_portal_mime_handler();
@@ -1826,6 +1700,3 @@ diff --git a/widget/gtk/WidgetUtilsGtk.cpp b/widget/gtk/WidgetUtilsGtk.cpp
        case PortalKind::Settings:
          autoBehavior = true;
          return StaticPrefs::widget_use_xdg_desktop_portal_settings();
-       case PortalKind::Location:
-         return StaticPrefs::widget_use_xdg_desktop_portal_location();
-
