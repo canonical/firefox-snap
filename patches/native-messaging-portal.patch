@@ -1,0 +1,1831 @@
+diff --git a/modules/libpref/init/StaticPrefList.yaml b/modules/libpref/init/StaticPrefList.yaml
+--- a/modules/libpref/init/StaticPrefList.yaml
++++ b/modules/libpref/init/StaticPrefList.yaml
+@@ -14023,10 +14023,20 @@
+ - name: widget.use-xdg-desktop-portal.mime-handler
+   type: int32_t
+   value: 2
+   mirror: always
+ 
++# Whether to use XDG portal for native messaging.
++# https://github.com/flatpak/xdg-desktop-portal/issues/655
++#  - 0: never
++#  - 1: always
++#  - 2: auto (true for snap and flatpak or GTK_USE_PORTAL=1, false otherwise)
++- name: widget.use-xdg-desktop-portal.native-messaging
++  type: int32_t
++  value: 2
++  mirror: always
++
+ # Whether to try to use XDG portal for settings / look-and-feel information.
+ # https://flatpak.github.io/xdg-desktop-portal/#gdbus-org.freedesktop.portal.Settings
+ #  - 0: never
+ #  - 1: always
+ #  - 2: auto
+diff --git a/python/mozbuild/mozbuild/mozinfo.py b/python/mozbuild/mozbuild/mozinfo.py
+--- a/python/mozbuild/mozbuild/mozinfo.py
++++ b/python/mozbuild/mozbuild/mozinfo.py
+@@ -148,6 +148,9 @@ def build_dict(config, env=os.environ):
+ 
+     d["is_ubuntu"] = "Ubuntu" in platform.version()
+ 
++    if "MOZ_ENABLE_DBUS" in substs:
++        d["dbus_enabled"] = bool(substs.get("MOZ_ENABLE_DBUS"))
++
+     return d
+ 
+ 
+ def write_mozinfo(file, config, env=os.environ):
+     """Write JSON data about the configuration specified in config and an
+diff --git a/testing/mozharness/configs/unittests/linux_unittest.py b/testing/mozharness/configs/unittests/linux_unittest.py
+--- a/testing/mozharness/configs/unittests/linux_unittest.py
++++ b/testing/mozharness/configs/unittests/linux_unittest.py
+@@ -32,11 +32,16 @@
+     VALGRIND_SUPP_ARCH = os.path.join(VALGRIND_SUPP_DIR, "i386-pc-linux-gnu.sup")
+ 
+ #####
+ config = {
+     ###
+-    "virtualenv_modules": ["six==1.13.0", "vcversioner==2.16.0.0"],
++    "virtualenv_modules": [
++        "six==1.13.0",
++        "vcversioner==2.16.0.0",
++        "dbus-python==1.2.18",
++        "python-dbusmock==0.28.4",
++    ],
+     "installer_path": INSTALLER_PATH,
+     "binary_path": BINARY_PATH,
+     "xpcshell_name": XPCSHELL_NAME,
+     "http3server_name": HTTP3SERVER_NAME,
+     "exe_suffix": EXE_SUFFIX,
+diff --git a/toolkit/components/extensions/NativeMessaging.jsm b/toolkit/components/extensions/NativeMessaging.jsm
+--- a/toolkit/components/extensions/NativeMessaging.jsm
++++ b/toolkit/components/extensions/NativeMessaging.jsm
+@@ -29,10 +29,17 @@
+   NativeManifests: "resource://gre/modules/NativeManifests.jsm",
+   OS: "resource://gre/modules/osfile.jsm",
+   Subprocess: "resource://gre/modules/Subprocess.jsm",
+ });
+ 
++XPCOMUtils.defineLazyServiceGetter(
++  lazy,
++  "portal",
++  "@mozilla.org/extensions/native-messaging-portal;1",
++  "nsINativeMessagingPortal"
++);
++
+ // For a graceful shutdown (i.e., when the extension is unloaded or when it
+ // explicitly calls disconnect() on a native port), how long we give the native
+ // application to exit before we start trying to kill it.  (in milliseconds)
+ const GRACEFUL_SHUTDOWN_TIME = 3000;
+ 
+@@ -69,10 +76,18 @@
+     this.proc = null;
+     this.readPromise = null;
+     this.sendQueue = [];
+     this.writePromise = null;
+     this.cleanupStarted = false;
++    this.portalSessionHandle = null;
++
++    if ("@mozilla.org/extensions/native-messaging-portal;1" in Cc) {
++      if (lazy.portal.shouldUse()) {
++        this._initPortal();
++        return;
++      }
++    }
+ 
+     this.startupPromise = lazy.NativeManifests.lookupManifest(
+       "stdio",
+       application,
+       context
+@@ -117,10 +132,58 @@
+         Cu.reportError(err instanceof Error ? err : err.message);
+         this._cleanup(err);
+       });
+   }
+ 
++  _initPortal() {
++    this.startupPromise = this._doInitPortal();
++  }
++
++  async _doInitPortal() {
++    let available = await lazy.portal.available;
++
++    if (!available) {
++      this.startupPromise = null;
++      let err = new ExtensionError("Native messaging portal is not available");
++      Cu.reportError(err);
++      this._cleanup(err);
++      return;
++    }
++
++    try {
++      let handle = await lazy.portal.createSession(this.name);
++      this.portalSessionHandle = handle;
++      let pipes;
++      try {
++        pipes = await lazy.portal.start(
++          handle,
++          this.name,
++          this.context.extension.id
++        );
++      } catch (err) {
++        if (err.name == "NotFoundError") {
++          throw new ExtensionError(`No such native application ${this.name}`);
++        } else {
++          throw err;
++        }
++      }
++      this.proc = await lazy.Subprocess.connectRunning([
++        pipes.stdin,
++        pipes.stdout,
++        pipes.stderr,
++      ]);
++      this.startupPromise = null;
++      this._startRead();
++      this._startWrite();
++      this._startStderrRead();
++    } catch (err) {
++      this.startupPromise = null;
++      Cu.reportError(err instanceof Error ? err : err.message);
++      this._cleanup(err);
++    }
++  }
++
+   /**
+    * Open a connection to a native messaging host.
+    * @param {number} portId A unique internal ID that identifies the port.
+    * @param {NativeMessenger} port Parent NativeMessenger used to send messages.
+    * @returns {ParentPort}
+@@ -285,10 +348,19 @@
+       this.emit("disconnect", err);
+     }
+ 
+     await this.startupPromise;
+ 
++    if (this.portalSessionHandle) {
++      await this.writePromise;
++      await lazy.portal.closeSession(this.portalSessionHandle).then(_ => {
++        this.portalSessionHandle = null;
++        this.proc = null;
++      });
++      return;
++    }
++
+     if (!this.proc) {
+       // Failed to initialize proc in the constructor.
+       return;
+     }
+ 
+diff --git a/toolkit/components/extensions/NativeMessagingPortal.h b/toolkit/components/extensions/NativeMessagingPortal.h
+new file mode 100644
+--- /dev/null
++++ b/toolkit/components/extensions/NativeMessagingPortal.h
+@@ -0,0 +1,74 @@
++/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
++/* vim: set ts=8 sts=2 et sw=2 tw=80: */
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++#ifndef mozilla_extensions_NativeMessagingPortal_h
++#define mozilla_extensions_NativeMessagingPortal_h
++
++#include "nsINativeMessagingPortal.h"
++
++#include <gio/gio.h>
++
++#include "mozilla/GRefPtr.h"
++#include "mozilla/UniquePtr.h"
++
++#include <deque>
++#include <unordered_map>
++
++namespace mozilla::extensions {
++
++enum class SessionState { Active, Closing, Error };
++
++class NativeMessagingPortal : public nsINativeMessagingPortal {
++ public:
++  NS_DECL_NSINATIVEMESSAGINGPORTAL
++  NS_DECL_ISUPPORTS
++
++  static already_AddRefed<NativeMessagingPortal> GetSingleton();
++
++ private:
++  NativeMessagingPortal();
++  virtual ~NativeMessagingPortal();
++
++  RefPtr<GDBusProxy> mProxy;
++  bool mInitialized = false;
++  RefPtr<GCancellable> mCancellable;
++
++  struct DelayedCall;
++  std::deque<UniquePtr<DelayedCall>> mPending;
++
++  using SessionsMap = std::unordered_map<std::string, SessionState>;
++  SessionsMap mSessions;
++
++  // Callbacks
++  static void OnProxyReady(GObject* source, GAsyncResult* result,
++                           gpointer user_data);
++  void MaybeDelayedIsAvailable(dom::Promise&, GVariant*);
++  void MaybeDelayedCreateSession(dom::Promise&, GVariant*);
++  static void OnCreateSessionDone(GObject* source, GAsyncResult* result,
++                                  gpointer user_data);
++  static void OnCloseSessionProxyReady(GObject* source, GAsyncResult* result,
++                                       gpointer user_data);
++  static void OnCloseSessionDone(GObject* source, GAsyncResult* result,
++                                 gpointer user_data);
++  static void OnSessionClosedSignal(GDBusConnection* bus,
++                                    const gchar* sender_name,
++                                    const gchar* object_path,
++                                    const gchar* interface_name,
++                                    const gchar* signal_name,
++                                    GVariant* parameters, gpointer user_data);
++  static void OnStartDone(GObject* source, GAsyncResult* result,
++                          gpointer user_data);
++  static void OnStartRequestResponseSignal(
++      GDBusConnection* bus, const gchar* sender_name, const gchar* object_path,
++      const gchar* interface_name, const gchar* signal_name,
++      GVariant* parameters, gpointer user_data);
++  static void OnGetPipesDone(GObject* source, GAsyncResult* result,
++                             gpointer user_data);
++};
++
++}  // namespace mozilla::extensions
++
++#endif  // mozilla_extensions_NativeMessagingPortal_h
+diff --git a/toolkit/components/extensions/NativeMessagingPortal.cpp b/toolkit/components/extensions/NativeMessagingPortal.cpp
+new file mode 100644
+--- /dev/null
++++ b/toolkit/components/extensions/NativeMessagingPortal.cpp
+@@ -0,0 +1,619 @@
++/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
++/* vim: set ts=8 sts=2 et sw=2 tw=80: */
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++#include "NativeMessagingPortal.h"
++
++#include <gio/gunixfdlist.h>
++#include <glib.h>
++
++#include "mozilla/ClearOnShutdown.h"
++#include "mozilla/GUniquePtr.h"
++#include "mozilla/Logging.h"
++#include "mozilla/UniquePtrExtensions.h"
++#include "mozilla/WidgetUtilsGtk.h"
++#include "mozilla/dom/Promise.h"
++
++#include <string.h>
++
++static mozilla::LazyLogModule gNativeMessagingPortalLog(
++    "NativeMessagingPortal");
++
++#ifdef MOZ_LOGGING
++#  define LOG_NMP(...) \
++    MOZ_LOG(gNativeMessagingPortalLog, mozilla::LogLevel::Debug, (__VA_ARGS__))
++#else
++#  define LOG_NMP(args)
++#endif
++
++namespace mozilla::extensions {
++
++NS_IMPL_ISUPPORTS(NativeMessagingPortal, nsINativeMessagingPortal)
++
++/* static */
++already_AddRefed<NativeMessagingPortal> NativeMessagingPortal::GetSingleton() {
++  static StaticRefPtr<NativeMessagingPortal> sInstance;
++
++  if (MOZ_UNLIKELY(!sInstance)) {
++    sInstance = new NativeMessagingPortal();
++    ClearOnShutdown(&sInstance);
++  }
++
++  return do_AddRef(sInstance);
++}
++
++static void LogError(const char* aMethod, const GError& aError) {
++  g_warning("%s error: %s", aMethod, aError.message);
++}
++
++static void RejectPromiseWithErrorMessage(dom::Promise& aPromise,
++                                          const GError& aError) {
++  aPromise.MaybeRejectWithOperationError(nsDependentCString(aError.message));
++}
++
++static nsresult GetPromise(JSContext* aCx, RefPtr<dom::Promise>& aPromise) {
++  nsIGlobalObject* globalObject = xpc::CurrentNativeGlobal(aCx);
++  if (NS_WARN_IF(!globalObject)) {
++    return NS_ERROR_UNEXPECTED;
++  }
++  ErrorResult result;
++  aPromise = dom::Promise::Create(globalObject, result);
++  if (NS_WARN_IF(result.Failed())) {
++    return result.StealNSResult();
++  }
++  return NS_OK;
++}
++
++struct CallbackData {
++  explicit CallbackData(dom::Promise& aPromise,
++                        const gchar* aSessionHandle = nullptr)
++      : promise(&aPromise), sessionHandle(g_strdup(aSessionHandle)) {}
++  RefPtr<dom::Promise> promise;
++  GUniquePtr<gchar> sessionHandle;
++  guint subscription_id = 0;
++};
++
++NativeMessagingPortal::NativeMessagingPortal() {
++  LOG_NMP("NativeMessagingPortal::NativeMessagingPortal()");
++  mCancellable = dont_AddRef(g_cancellable_new());
++  g_dbus_proxy_new_for_bus(G_BUS_TYPE_SESSION, G_DBUS_PROXY_FLAGS_NONE, nullptr,
++                           "org.freedesktop.portal.Desktop",
++                           "/org/freedesktop/portal/desktop",
++                           "org.freedesktop.portal.WebExtensions", mCancellable,
++                           &NativeMessagingPortal::OnProxyReady, this);
++}
++
++NativeMessagingPortal::~NativeMessagingPortal() {
++  LOG_NMP("NativeMessagingPortal::~NativeMessagingPortal()");
++
++  g_cancellable_cancel(mCancellable);
++
++  // Close all active sessions
++  for (const auto& it : mSessions) {
++    if (it.second != SessionState::Active) {
++      continue;
++    }
++    GUniquePtr<GError> error;
++    RefPtr<GDBusProxy> proxy = dont_AddRef(g_dbus_proxy_new_for_bus_sync(
++        G_BUS_TYPE_SESSION, G_DBUS_PROXY_FLAGS_NONE, nullptr,
++        "org.freedesktop.portal.Desktop", it.first.c_str(),
++        "org.freedesktop.portal.Session", nullptr, getter_Transfers(error)));
++    if (!proxy) {
++      LOG_NMP("failed to get a D-Bus proxy: %s", error->message);
++      LogError(__func__, *error);
++      continue;
++    }
++    RefPtr<GVariant> res = dont_AddRef(
++        g_dbus_proxy_call_sync(proxy, "Close", nullptr, G_DBUS_CALL_FLAGS_NONE,
++                               -1, nullptr, getter_Transfers(error)));
++    if (!res) {
++      LOG_NMP("failed to close session: %s", error->message);
++      LogError(__func__, *error);
++    }
++  }
++}
++
++NS_IMETHODIMP
++NativeMessagingPortal::ShouldUse(bool* aResult) {
++  *aResult = widget::ShouldUsePortal(widget::PortalKind::NativeMessaging);
++  LOG_NMP("will %sbe used", *aResult ? "" : "not ");
++  return NS_OK;
++}
++
++struct NativeMessagingPortal::DelayedCall {
++  using DelayedMethodCall = void (NativeMessagingPortal::*)(dom::Promise&,
++                                                            GVariant*);
++
++  DelayedCall(DelayedMethodCall aCallback, dom::Promise& aPromise,
++              GVariant* aArgs = nullptr)
++      : callback(aCallback), promise(&aPromise), args(aArgs) {
++    LOG_NMP("NativeMessagingPortal::DelayedCall::DelayedCall()");
++  }
++  ~DelayedCall() {
++    LOG_NMP("NativeMessagingPortal::DelayedCall::~DelayedCall()");
++  }
++
++  DelayedMethodCall callback;
++  RefPtr<dom::Promise> promise;
++  RefPtr<GVariant> args;
++};
++
++/* static */
++void NativeMessagingPortal::OnProxyReady(GObject* source, GAsyncResult* result,
++                                         gpointer user_data) {
++  NativeMessagingPortal* self = static_cast<NativeMessagingPortal*>(user_data);
++  GUniquePtr<GError> error;
++  self->mProxy = dont_AddRef(
++      g_dbus_proxy_new_for_bus_finish(result, getter_Transfers(error)));
++  if (self->mProxy) {
++    LOG_NMP("D-Bus proxy ready for name %s, path %s, interface %s",
++            g_dbus_proxy_get_name(self->mProxy),
++            g_dbus_proxy_get_object_path(self->mProxy),
++            g_dbus_proxy_get_interface_name(self->mProxy));
++  } else {
++    LOG_NMP("failed to get a D-Bus proxy: %s", error->message);
++    LogError(__func__, *error);
++  }
++  self->mInitialized = true;
++  while (!self->mPending.empty()) {
++    auto pending = std::move(self->mPending.front());
++    self->mPending.pop_front();
++    (self->*pending->callback)(*pending->promise, pending->args.get());
++  }
++}
++
++NS_IMETHODIMP
++NativeMessagingPortal::GetAvailable(JSContext* aCx, dom::Promise** aPromise) {
++  RefPtr<dom::Promise> promise;
++  MOZ_TRY(GetPromise(aCx, promise));
++
++  if (mInitialized) {
++    MaybeDelayedIsAvailable(*promise, nullptr);
++  } else {
++    auto delayed = MakeUnique<DelayedCall>(
++        &NativeMessagingPortal::MaybeDelayedIsAvailable, *promise);
++    mPending.push_back(std::move(delayed));
++  }
++
++  promise.forget(aPromise);
++  return NS_OK;
++}
++
++void NativeMessagingPortal::MaybeDelayedIsAvailable(dom::Promise& aPromise,
++                                                    GVariant* aArgs) {
++  MOZ_ASSERT(!aArgs);
++
++  bool available = false;
++  if (mProxy) {
++    RefPtr<GVariant> version =
++        dont_AddRef(g_dbus_proxy_get_cached_property(mProxy, "version"));
++    if (version) {
++      if (g_variant_get_uint32(version) >= 1) {
++        available = true;
++      }
++    }
++  }
++
++  LOG_NMP("is %savailable", available ? "" : "not ");
++  aPromise.MaybeResolve(available);
++}
++
++NS_IMETHODIMP
++NativeMessagingPortal::CreateSession(const nsACString& aApplication,
++                                     JSContext* aCx, dom::Promise** aPromise) {
++  RefPtr<dom::Promise> promise;
++  MOZ_TRY(GetPromise(aCx, promise));
++
++  // Creating a session requires passing a unique token that will be used as the
++  // suffix for the session handle, and it should be a valid D-Bus object path
++  // component (i.e. it contains only the characters "[A-Z][a-z][0-9]_", see
++  // https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-marshaling-object-path
++  // and
++  // https://flatpak.github.io/xdg-desktop-portal/#gdbus-org.freedesktop.portal.Session).
++  // The token should be unique and not guessable. To avoid clashes with calls
++  // made from unrelated libraries, it is a good idea to use a per-library
++  // prefix combined with a random number.
++  // Here, we build the token by concatenating MOZ_APP_NAME (e.g. "firefox"),
++  // with the name of the native application (sanitized to remove invalid
++  // characters, see
++  // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_manifests#native_messaging_manifests),
++  // and a random number.
++  const nsCString& application = PromiseFlatCString(aApplication);
++  GUniquePtr<gchar> sanitizedApplicationName(g_strdup(application.get()));
++  g_strdelimit(sanitizedApplicationName.get(), ".", '_');
++  GUniquePtr<gchar> token(g_strdup_printf("%s_%s_%u", MOZ_APP_NAME,
++                                          sanitizedApplicationName.get(),
++                                          g_random_int()));
++  RefPtr<GVariant> args = dont_AddRef(g_variant_new_string(token.get()));
++
++  if (mInitialized) {
++    MaybeDelayedCreateSession(*promise, args);
++  } else {
++    auto delayed = MakeUnique<DelayedCall>(
++        &NativeMessagingPortal::MaybeDelayedCreateSession, *promise, args);
++    mPending.push_back(std::move(delayed));
++  }
++
++  promise.forget(aPromise);
++  return NS_OK;
++}
++
++void NativeMessagingPortal::MaybeDelayedCreateSession(dom::Promise& aPromise,
++                                                      GVariant* aArgs) {
++  MOZ_ASSERT(g_variant_is_of_type(aArgs, G_VARIANT_TYPE_STRING));
++
++  if (!mProxy) {
++    return aPromise.MaybeRejectWithOperationError(
++        "No D-Bus proxy for the native messaging portal");
++  }
++
++  LOG_NMP("creating session with handle suffix %s",
++          g_variant_get_string(aArgs, nullptr));
++
++  GVariantBuilder options;
++  g_variant_builder_init(&options, G_VARIANT_TYPE_VARDICT);
++  g_variant_builder_add(&options, "{sv}", "session_handle_token",
++                        g_variant_ref_sink(aArgs));
++  auto callbackData = MakeUnique<CallbackData>(aPromise);
++  g_dbus_proxy_call(mProxy, "CreateSession", g_variant_new("(a{sv})", &options),
++                    G_DBUS_CALL_FLAGS_NONE, -1, nullptr,
++                    &NativeMessagingPortal::OnCreateSessionDone,
++                    callbackData.release());
++}
++
++/* static */
++void NativeMessagingPortal::OnCreateSessionDone(GObject* source,
++                                                GAsyncResult* result,
++                                                gpointer user_data) {
++  GDBusProxy* proxy = G_DBUS_PROXY(source);
++  UniquePtr<CallbackData> callbackData(static_cast<CallbackData*>(user_data));
++
++  GUniquePtr<GError> error;
++  RefPtr<GVariant> res = dont_AddRef(
++      g_dbus_proxy_call_finish(proxy, result, getter_Transfers(error)));
++  if (res) {
++    RefPtr<GVariant> sessionHandle =
++        dont_AddRef(g_variant_get_child_value(res, 0));
++    gsize length;
++    const char* value = g_variant_get_string(sessionHandle, &length);
++    LOG_NMP("session created with handle %s", value);
++    RefPtr<NativeMessagingPortal> portal = GetSingleton();
++    portal->mSessions[value] = SessionState::Active;
++
++    GDBusConnection* connection = g_dbus_proxy_get_connection(proxy);
++    // The "Closed" signal is emitted e.g. when the user denies access to the
++    // native application when the shell prompts them.
++    auto subscription_id_ptr = MakeUnique<guint>(0);
++    *subscription_id_ptr = g_dbus_connection_signal_subscribe(
++        connection, "org.freedesktop.portal.Desktop",
++        "org.freedesktop.portal.Session", "Closed", value, nullptr,
++        G_DBUS_SIGNAL_FLAGS_NONE, &NativeMessagingPortal::OnSessionClosedSignal,
++        subscription_id_ptr.get(), [](gpointer aUserData) {
++          UniquePtr<guint> release(reinterpret_cast<guint*>(aUserData));
++        });
++    Unused << subscription_id_ptr.release();  // Ownership transferred above.
++
++    callbackData->promise->MaybeResolve(nsDependentCString(value, length));
++  } else {
++    LOG_NMP("failed to create session: %s", error->message);
++    LogError(__func__, *error);
++    RejectPromiseWithErrorMessage(*callbackData->promise, *error);
++  }
++}
++
++NS_IMETHODIMP
++NativeMessagingPortal::CloseSession(const nsACString& aHandle, JSContext* aCx,
++                                    dom::Promise** aPromise) {
++  const nsCString& sessionHandle = PromiseFlatCString(aHandle);
++
++  if (!g_variant_is_object_path(sessionHandle.get())) {
++    LOG_NMP("cannot close session %s, invalid handle", sessionHandle.get());
++    return NS_ERROR_INVALID_ARG;
++  }
++
++  auto sessionIterator = mSessions.find(sessionHandle.get());
++  if (sessionIterator == mSessions.end()) {
++    LOG_NMP("cannot close session %s, unknown handle", sessionHandle.get());
++    return NS_ERROR_INVALID_ARG;
++  }
++
++  if (sessionIterator->second != SessionState::Active) {
++    LOG_NMP("cannot close session %s, not active", sessionHandle.get());
++    return NS_ERROR_FAILURE;
++  }
++
++  RefPtr<dom::Promise> promise;
++  MOZ_TRY(GetPromise(aCx, promise));
++
++  sessionIterator->second = SessionState::Closing;
++  LOG_NMP("closing session %s", sessionHandle.get());
++  auto callbackData = MakeUnique<CallbackData>(*promise, sessionHandle.get());
++  g_dbus_proxy_new_for_bus(
++      G_BUS_TYPE_SESSION, G_DBUS_PROXY_FLAGS_NONE, nullptr,
++      "org.freedesktop.portal.Desktop", sessionHandle.get(),
++      "org.freedesktop.portal.Session", nullptr,
++      &NativeMessagingPortal::OnCloseSessionProxyReady, callbackData.release());
++
++  promise.forget(aPromise);
++  return NS_OK;
++}
++
++/* static */
++void NativeMessagingPortal::OnCloseSessionProxyReady(GObject* source,
++                                                     GAsyncResult* result,
++                                                     gpointer user_data) {
++  UniquePtr<CallbackData> callbackData(static_cast<CallbackData*>(user_data));
++
++  GUniquePtr<GError> error;
++  RefPtr<GDBusProxy> proxy = dont_AddRef(
++      g_dbus_proxy_new_for_bus_finish(result, getter_Transfers(error)));
++  if (!proxy) {
++    LOG_NMP("failed to close session: %s", error->message);
++    LogError(__func__, *error);
++    return RejectPromiseWithErrorMessage(*callbackData->promise, *error);
++  }
++
++  g_dbus_proxy_call(proxy, "Close", nullptr, G_DBUS_CALL_FLAGS_NONE, -1,
++                    nullptr, &NativeMessagingPortal::OnCloseSessionDone,
++                    callbackData.release());
++}
++
++/* static */
++void NativeMessagingPortal::OnCloseSessionDone(GObject* source,
++                                               GAsyncResult* result,
++                                               gpointer user_data) {
++  GDBusProxy* proxy = G_DBUS_PROXY(source);
++  UniquePtr<CallbackData> callbackData(static_cast<CallbackData*>(user_data));
++
++  RefPtr<NativeMessagingPortal> portal = GetSingleton();
++  GUniquePtr<GError> error;
++  RefPtr<GVariant> res = dont_AddRef(
++      g_dbus_proxy_call_finish(proxy, result, getter_Transfers(error)));
++  if (res) {
++    LOG_NMP("session %s closed", callbackData->sessionHandle.get());
++    portal->mSessions.erase(callbackData->sessionHandle.get());
++    callbackData->promise->MaybeResolve(NS_OK);
++  } else {
++    LOG_NMP("failed to close session %s: %s", callbackData->sessionHandle.get(),
++            error->message);
++    LogError(__func__, *error);
++    portal->mSessions[callbackData->sessionHandle.get()] = SessionState::Error;
++    RejectPromiseWithErrorMessage(*callbackData->promise, *error);
++  }
++}
++
++/* static */
++void NativeMessagingPortal::OnSessionClosedSignal(
++    GDBusConnection* bus, const gchar* sender_name, const gchar* object_path,
++    const gchar* interface_name, const gchar* signal_name, GVariant* parameters,
++    gpointer user_data) {
++  guint subscription_id = *reinterpret_cast<guint*>(user_data);
++  LOG_NMP("session %s was closed by the portal", object_path);
++  g_dbus_connection_signal_unsubscribe(bus, subscription_id);
++  RefPtr<NativeMessagingPortal> portal = GetSingleton();
++  portal->mSessions.erase(object_path);
++}
++
++NS_IMETHODIMP
++NativeMessagingPortal::Start(const nsACString& aHandle, const nsACString& aName,
++                             const nsACString& aExtension, JSContext* aCx,
++                             dom::Promise** aPromise) {
++  const nsCString& sessionHandle = PromiseFlatCString(aHandle);
++  const nsCString& name = PromiseFlatCString(aName);
++  const nsCString& extension = PromiseFlatCString(aExtension);
++
++  if (!g_variant_is_object_path(sessionHandle.get())) {
++    LOG_NMP("cannot start %s, invalid session handle %s", name.get(),
++            sessionHandle.get());
++    return NS_ERROR_INVALID_ARG;
++  }
++
++  auto sessionIterator = mSessions.find(sessionHandle.get());
++  if (sessionIterator == mSessions.end()) {
++    LOG_NMP("cannot start %s, unknown session handle %s", name.get(),
++            sessionHandle.get());
++    return NS_ERROR_INVALID_ARG;
++  }
++
++  if (sessionIterator->second != SessionState::Active) {
++    LOG_NMP("cannot start %s, inactive session %s", name.get(),
++            sessionHandle.get());
++    return NS_ERROR_FAILURE;
++  }
++
++  if (!mProxy) {
++    LOG_NMP("cannot start %s, missing D-Bus proxy", name.get());
++    return NS_ERROR_FAILURE;
++  }
++
++  RefPtr<dom::Promise> promise;
++  MOZ_TRY(GetPromise(aCx, promise));
++
++  auto callbackData = MakeUnique<CallbackData>(*promise, sessionHandle.get());
++  auto* releasedCallbackData = callbackData.release();
++
++  LOG_NMP("starting %s, requested by %s in session %s", name.get(),
++          extension.get(), sessionHandle.get());
++
++  GDBusConnection* connection = g_dbus_proxy_get_connection(mProxy);
++  GUniquePtr<gchar> senderName(
++      g_strdup(g_dbus_connection_get_unique_name(connection)));
++  g_strdelimit(senderName.get(), ".", '_');
++  GUniquePtr<gchar> handleToken(
++      g_strdup_printf("%s/%d", MOZ_APP_NAME, g_random_int_range(0, G_MAXINT)));
++  GUniquePtr<gchar> requestPath(
++      g_strdup_printf("/org/freedesktop/portal/desktop/request/%s/%s",
++                      senderName.get() + 1, handleToken.get()));
++  releasedCallbackData->subscription_id = g_dbus_connection_signal_subscribe(
++      connection, "org.freedesktop.portal.Desktop",
++      "org.freedesktop.portal.Request", "Response", requestPath.get(), nullptr,
++      G_DBUS_SIGNAL_FLAGS_NONE,
++      &NativeMessagingPortal::OnStartRequestResponseSignal,
++      releasedCallbackData, nullptr);
++
++  auto callbackDataCopy =
++      MakeUnique<CallbackData>(*promise, sessionHandle.get());
++  GVariantBuilder options;
++  g_variant_builder_init(&options, G_VARIANT_TYPE_VARDICT);
++  g_variant_builder_add(&options, "{sv}", "handle_token",
++                        g_variant_new_string(handleToken.get()));
++  g_dbus_proxy_call(mProxy, "Start",
++                    g_variant_new("(ossa{sv})", sessionHandle.get(), name.get(),
++                                  extension.get(), &options),
++                    G_DBUS_CALL_FLAGS_NONE, -1, nullptr,
++                    &NativeMessagingPortal::OnStartDone,
++                    callbackDataCopy.release());
++
++  promise.forget(aPromise);
++  return NS_OK;
++}
++
++/* static */
++void NativeMessagingPortal::OnStartDone(GObject* source, GAsyncResult* result,
++                                        gpointer user_data) {
++  GDBusProxy* proxy = G_DBUS_PROXY(source);
++  UniquePtr<CallbackData> callbackData(static_cast<CallbackData*>(user_data));
++
++  GUniquePtr<GError> error;
++  RefPtr<GVariant> handle = dont_AddRef(
++      g_dbus_proxy_call_finish(proxy, result, getter_Transfers(error)));
++  if (handle) {
++    handle = dont_AddRef(g_variant_get_child_value(handle, 0));
++    LOG_NMP(
++        "native application start requested in session %s, pending response "
++        "for %s",
++        callbackData->sessionHandle.get(),
++        g_variant_get_string(handle, nullptr));
++  } else {
++    LOG_NMP("failed to start native application in session %s: %s",
++            callbackData->sessionHandle.get(), error->message);
++    LogError(__func__, *error);
++    RejectPromiseWithErrorMessage(*callbackData->promise, *error);
++  }
++}
++
++/* static */
++void NativeMessagingPortal::OnStartRequestResponseSignal(
++    GDBusConnection* bus, const gchar* sender_name, const gchar* object_path,
++    const gchar* interface_name, const gchar* signal_name, GVariant* parameters,
++    gpointer user_data) {
++  UniquePtr<CallbackData> callbackData(static_cast<CallbackData*>(user_data));
++
++  LOG_NMP("got response signal for %s in session %s", object_path,
++          callbackData->sessionHandle.get());
++  g_dbus_connection_signal_unsubscribe(bus, callbackData->subscription_id);
++
++  RefPtr<GVariant> result =
++      dont_AddRef(g_variant_get_child_value(parameters, 0));
++  guint32 value = g_variant_get_uint32(result);
++  if (value == 0) {
++    LOG_NMP(
++        "native application start successful in session %s, requesting file "
++        "descriptors",
++        callbackData->sessionHandle.get());
++    RefPtr<NativeMessagingPortal> portal = GetSingleton();
++    GVariantBuilder options;
++    g_variant_builder_init(&options, G_VARIANT_TYPE_VARDICT);
++    g_dbus_proxy_call_with_unix_fd_list(
++        portal->mProxy.get(), "GetPipes",
++        g_variant_new("(oa{sv})", callbackData->sessionHandle.get(), &options),
++        G_DBUS_CALL_FLAGS_NONE, -1, nullptr, nullptr,
++        &NativeMessagingPortal::OnGetPipesDone, callbackData.release());
++  } else if (value == 1) {
++    LOG_NMP("native application start canceled by user in session %s",
++            callbackData->sessionHandle.get());
++    callbackData->promise->MaybeRejectWithAbortError(
++        "Native application start canceled by user");
++  } else {
++    LOG_NMP("native application start failed in session %s",
++            callbackData->sessionHandle.get());
++    callbackData->promise->MaybeRejectWithNotFoundError(
++        "Native application start failed");
++  }
++}
++
++static gint GetFD(const RefPtr<GVariant>& result, GUnixFDList* fds,
++                  gint index) {
++  RefPtr<GVariant> value =
++      dont_AddRef(g_variant_get_child_value(result, index));
++  GUniquePtr<GError> error;
++  gint fd = g_unix_fd_list_get(fds, g_variant_get_handle(value),
++                               getter_Transfers(error));
++  if (fd == -1) {
++    LOG_NMP("failed to get file descriptor at index %d: %s", index,
++            error->message);
++    LogError("GetFD", *error);
++  }
++  return fd;
++}
++
++/* static */
++void NativeMessagingPortal::OnGetPipesDone(GObject* source,
++                                           GAsyncResult* result,
++                                           gpointer user_data) {
++  GDBusProxy* proxy = G_DBUS_PROXY(source);
++  UniquePtr<CallbackData> callbackData(static_cast<CallbackData*>(user_data));
++  auto promise = callbackData->promise;
++
++  RefPtr<GUnixFDList> fds;
++  GUniquePtr<GError> error;
++  RefPtr<GVariant> pipes =
++      dont_AddRef(g_dbus_proxy_call_with_unix_fd_list_finish(
++          proxy, getter_AddRefs(fds), result, getter_Transfers(error)));
++
++  if (!pipes) {
++    LOG_NMP(
++        "failed to get file descriptors for native application in session %s: "
++        "%s",
++        callbackData->sessionHandle.get(), error->message);
++    LogError(__func__, *error);
++    return RejectPromiseWithErrorMessage(*promise, *error);
++  }
++
++  gint32 _stdin = GetFD(pipes, fds, 0);
++  gint32 _stdout = GetFD(pipes, fds, 1);
++  gint32 _stderr = GetFD(pipes, fds, 2);
++  LOG_NMP(
++      "got file descriptors for native application in session %s: (%d, %d, %d)",
++      callbackData->sessionHandle.get(), _stdin, _stdout, _stderr);
++
++  if (_stdin == -1 || _stdout == -1 || _stderr == -1) {
++    return promise->MaybeRejectWithOperationError("Invalid file descriptor");
++  }
++
++  dom::AutoJSAPI jsapi;
++  if (NS_WARN_IF(!jsapi.Init(promise->GetGlobalObject()))) {
++    return promise->MaybeRejectWithUnknownError(
++        "Failed to initialize JS context");
++  }
++  JSContext* cx = jsapi.cx();
++
++  JS::Rooted<JSObject*> jsPipes(cx, JS_NewPlainObject(cx));
++  if (!jsPipes) {
++    return promise->MaybeRejectWithOperationError(
++        "Failed to create a JS object to hold the file descriptors");
++  }
++
++  auto setPipeProperty = [&](const char* name, int32_t value) {
++    JS::Rooted<JS::Value> jsValue(cx, JS::Value::fromInt32(value));
++    return JS_SetProperty(cx, jsPipes, name, jsValue);
++  };
++  if (!setPipeProperty("stdin", _stdin)) {
++    return promise->MaybeRejectWithOperationError(
++        "Failed to set the 'stdin' property on the JS object");
++  }
++  if (!setPipeProperty("stdout", _stdout)) {
++    return promise->MaybeRejectWithOperationError(
++        "Failed to set the 'stdout' property on the JS object");
++  }
++  if (!setPipeProperty("stderr", _stderr)) {
++    return promise->MaybeRejectWithOperationError(
++        "Failed to set the 'stderr' property on the JS object");
++  }
++
++  promise->MaybeResolve(jsPipes);
++}
++
++}  // namespace mozilla::extensions
+diff --git a/toolkit/components/extensions/components.conf b/toolkit/components/extensions/components.conf
+--- a/toolkit/components/extensions/components.conf
++++ b/toolkit/components/extensions/components.conf
+@@ -12,5 +12,17 @@
+         'constructor': 'mozilla::extensions::ExtensionsChild::GetSingleton',
+         'headers': ['mozilla/extensions/ExtensionsChild.h'],
+         'categories': {'app-startup': 'ExtensionsChild'},
+     },
+ ]
++
++if buildconfig.substs['MOZ_WIDGET_TOOLKIT'] == 'gtk' and defined('MOZ_ENABLE_DBUS'):
++    Classes += [
++        {
++            'cid': '{8a9a1406-d700-4221-8615-1d84b0d213fb}',
++            'contract_ids': ['@mozilla.org/extensions/native-messaging-portal;1'],
++            'singleton': True,
++            'type': 'mozilla::extensions::NativeMessagingPortal',
++            'constructor': 'mozilla::extensions::NativeMessagingPortal::GetSingleton',
++            'headers': ['mozilla/extensions/NativeMessagingPortal.h'],
++        },
++    ]
+diff --git a/toolkit/components/extensions/moz.build b/toolkit/components/extensions/moz.build
+--- a/toolkit/components/extensions/moz.build
++++ b/toolkit/components/extensions/moz.build
+@@ -72,10 +72,11 @@
+ 
+ XPIDL_SOURCES += [
+     "extIWebNavigation.idl",
+     "mozIExtensionAPIRequestHandling.idl",
+     "mozIExtensionProcessScript.idl",
++    "nsINativeMessagingPortal.idl",
+ ]
+ 
+ XPIDL_MODULE = "webextensions"
+ 
+ EXPORTS.mozilla = [
+@@ -98,10 +99,17 @@
+     "ExtensionsParent.cpp",
+     "MatchPattern.cpp",
+     "WebExtensionPolicy.cpp",
+ ]
+ 
++if CONFIG["MOZ_WIDGET_TOOLKIT"] == "gtk" and CONFIG["MOZ_ENABLE_DBUS"]:
++    EXPORTS.mozilla.extensions += ["NativeMessagingPortal.h"]
++    UNIFIED_SOURCES += ["NativeMessagingPortal.cpp"]
++    CXXFLAGS += CONFIG["MOZ_DBUS_GLIB_CFLAGS"]
++    CXXFLAGS += CONFIG["MOZ_GTK3_CFLAGS"]
++    DEFINES["MOZ_APP_NAME"] = '"%s"' % CONFIG["MOZ_APP_NAME"]
++
+ XPCOM_MANIFESTS += [
+     "components.conf",
+ ]
+ 
+ FINAL_LIBRARY = "xul"
+diff --git a/toolkit/components/extensions/nsINativeMessagingPortal.idl b/toolkit/components/extensions/nsINativeMessagingPortal.idl
+new file mode 100644
+--- /dev/null
++++ b/toolkit/components/extensions/nsINativeMessagingPortal.idl
+@@ -0,0 +1,71 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++#include "nsISupports.idl"
++
++/**
++ * An interface to talk to the WebExtensions XDG desktop portal,
++ * for sandboxed browsers (e.g. packaged as a snap or a flatpak).
++ * See https://github.com/flatpak/xdg-desktop-portal/issues/655.
++ */
++[scriptable, builtinclass, uuid(7c3003e8-6d10-46cc-b754-70cd889871e7)]
++interface nsINativeMessagingPortal : nsISupports
++{
++  /**
++   * Whether client code should use the portal, or fall back to the "legacy"
++   * implementation that spawns and communicates directly with native
++   * applications.
++   */
++  boolean shouldUse();
++
++  /**
++   * Whether the portal is available and can be talked to. It is an error to
++   * call other methods in this interface if the portal isn't available.
++   *
++   * @returns Promise that resolves with a boolean that reflects
++              the availability of the portal.
++   */
++  [implicit_jscontext]
++  readonly attribute Promise available;
++
++  /**
++   * Create a native messaging session.
++   *
++   * @param aApplication The name of the native application which the portal is
++   *                     being requested to talk to. See
++   *                     https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_manifests#native_messaging_manifests.
++   *
++   * @returns Promise that resolves with a string that represents the
++              session handle (a D-Bus object path of the form
++              /org/freedesktop/portal/desktop/session/SENDER/TOKEN).
++   */
++  [implicit_jscontext]
++  Promise createSession(in ACString aApplication);
++
++  /**
++   * Close a previously open session.
++   *
++   * @param aHandle The handle of a valid session.
++   *
++   * @returns Promise that resolves when the session is successfully closed.
++   */
++  [implicit_jscontext]
++  Promise closeSession(in ACString aHandle);
++
++  /**
++   * Start the named native messaging server, in a previously open session.
++   * The caller must indicate the requesting web extension (by extension ID).
++   *
++   * @param aHandle    The handle of a valid session.
++   * @param aName      The name of the native messaging server to start.
++   * @param aExtension The ID of the extension that issues the request.
++   *
++   * @returns Promise that resolves with an object that has 'stdin', 'stdout'
++              and 'stderr' attributes for the open file descriptors that the
++              caller can use to communicate with the native application once
++              successfully started.
++   */
++  [implicit_jscontext]
++  Promise start(in ACString aHandle, in ACString aName, in ACString aExtension);
++};
+diff --git a/toolkit/components/extensions/test/xpcshell/native_messaging.ini b/toolkit/components/extensions/test/xpcshell/native_messaging.ini
+--- a/toolkit/components/extensions/test/xpcshell/native_messaging.ini
++++ b/toolkit/components/extensions/test/xpcshell/native_messaging.ini
+@@ -13,6 +13,9 @@
+   (os == "win" && processor == "aarch64") # bug 1530841
+   apple_silicon # bug 1729540
+ run-sequentially = very high failure rate in parallel
+ [test_ext_native_messaging_perf.js]
+ skip-if = tsan # Unreasonably slow, bug 1612707
++[test_ext_native_messaging_portal.js]
++run-if = (os == 'linux' && toolkit == 'gtk' && dbus_enabled)
++tags = portal
+ [test_ext_native_messaging_unresponsive.js]
+diff --git a/toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js b/toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js
+new file mode 100644
+--- /dev/null
++++ b/toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js
+@@ -0,0 +1,380 @@
++/* -*- Mode: indent-tabs-mode: nil; js-indent-level: 2 -*- */
++/* vim: set sts=2 sw=2 et tw=80: */
++"use strict";
++
++const lazy = {};
++
++ChromeUtils.defineModuleGetter(
++  lazy,
++  "Subprocess",
++  "resource://gre/modules/Subprocess.jsm"
++);
++
++AddonTestUtils.init(this);
++AddonTestUtils.overrideCertDB();
++AddonTestUtils.createAppInfo(
++  "xpcshell@tests.mozilla.org",
++  "XPCShell",
++  "1",
++  "42"
++);
++
++const SCRIPTS = [];
++
++const SESSION_HANDLE =
++  "/org/freedesktop/portal/desktop/session/foobar/firefox_xpcshell_tests_mozilla_org_42";
++
++const portalBusName = "org.freedesktop.portal.Desktop";
++const portalObjectPath = "/org/freedesktop/portal/desktop";
++const portalInterfaceName = "org.freedesktop.portal.WebExtensions";
++const sessionInterfaceName = "org.freedesktop.portal.Session";
++const dbusMockInterface = "org.freedesktop.DBus.Mock";
++const addObjectMethod = `${dbusMockInterface}.AddObject`;
++const addMethodMethod = `${dbusMockInterface}.AddMethod`;
++const addPropertyMethod = `${dbusMockInterface}.AddProperty`;
++const updatePropertiesMethod = `${dbusMockInterface}.UpdateProperties`;
++const emitSignalDetailedMethod = `${dbusMockInterface}.EmitSignalDetailed`;
++const getCallsMethod = `${dbusMockInterface}.GetCalls`;
++const clearCallsMethod = `${dbusMockInterface}.ClearCalls`;
++const resetMethod = `${dbusMockInterface}.Reset`;
++const mockRequestObjectPath = "/org/freedesktop/portal/desktop/request";
++
++var DBUS_SESSION_BUS_ADDRESS = "";
++var DBUS_SESSION_BUS_PID = 0; // eslint-disable-line no-unused-vars
++var DBUS_MOCK = null;
++var FDS_MOCK = null;
++
++async function background() {
++  let port;
++  browser.test.onMessage.addListener(async (what, payload) => {
++    if (what == "request") {
++      await browser.permissions.request({ permissions: ["nativeMessaging"] });
++      // connectNative requires permission
++      port = browser.runtime.connectNative("echo");
++      port.onMessage.addListener(msg => {
++        browser.test.sendMessage("message", msg);
++      });
++      browser.test.sendMessage("ready");
++    } else if (what == "send") {
++      if (payload._json) {
++        let json = payload._json;
++        payload.toJSON = () => json;
++        delete payload._json;
++      }
++      port.postMessage(payload);
++    }
++  });
++}
++
++async function mockSetup(objectPath, methodName, args) {
++  let mockSetup = await lazy.Subprocess.call({
++    command: await lazy.Subprocess.pathSearch("gdbus"),
++    arguments: [
++      "call",
++      "--session",
++      "-d",
++      portalBusName,
++      "-o",
++      objectPath,
++      "-m",
++      methodName,
++      ...args,
++    ],
++  });
++  return mockSetup.wait();
++}
++
++add_setup(async function() {
++  // Start and use a separate message bus for the tests, to not interfere with
++  // the current's session message bus.
++  let dbus = await lazy.Subprocess.call({
++    command: await lazy.Subprocess.pathSearch("dbus-launch"),
++  });
++  let stdout = await dbus.stdout.readString();
++  let lines = stdout.split("\n");
++  for (let i in lines) {
++    let tokens = lines[i].split("=");
++    switch (tokens.shift()) {
++      case "DBUS_SESSION_BUS_ADDRESS":
++        DBUS_SESSION_BUS_ADDRESS = tokens.join("=");
++        break;
++      case "DBUS_SESSION_BUS_PID":
++        DBUS_SESSION_BUS_PID = tokens.join();
++        break;
++      default:
++    }
++  }
++
++  let env = Cc["@mozilla.org/process/environment;1"].getService(
++    Ci.nsIEnvironment
++  );
++  env.set("DBUS_SESSION_BUS_ADDRESS", DBUS_SESSION_BUS_ADDRESS);
++  env.set("GTK_USE_PORTAL", "1");
++
++  // dbusmock is used to mock the native messaging portal's D-Bus API.
++  DBUS_MOCK = await lazy.Subprocess.call({
++    command: await lazy.Subprocess.pathSearch("python3"),
++    arguments: [
++      "-m",
++      "dbusmock",
++      portalBusName,
++      portalObjectPath,
++      portalInterfaceName,
++    ],
++  });
++
++  // When talking to the native messaging portal over D-Bus, it returns a tuple
++  // of file descriptors. For the mock to work correctly, the file descriptors
++  // must exist, so create a dummy process in order to use its stdin, stdout
++  // and stderr file descriptors.
++  FDS_MOCK = await lazy.Subprocess.call({
++    command: await lazy.Subprocess.pathSearch("tail"),
++    arguments: ["-f", "/dev/null"],
++    stderr: "pipe",
++  });
++
++  registerCleanupFunction(async function() {
++    await FDS_MOCK.kill();
++    await mockSetup(portalObjectPath, resetMethod, []);
++    await DBUS_MOCK.kill();
++    // XXX: While this works locally, it consistently fails when tests are run
++    // in CI, with "xpcshell return code: -15". This needs to be investigated
++    // further. This leaves a stray dbus-daemon process behind,
++    // which isn't ideal, but is harmless.
++    /*await lazy.Subprocess.call({
++      command: await lazy.Subprocess.pathSearch("kill"),
++      arguments: ["-SIGQUIT", DBUS_SESSION_BUS_PID],
++    });*/
++  });
++
++  // Set up the mock objects and methods.
++  await mockSetup(portalObjectPath, addPropertyMethod, [
++    portalInterfaceName,
++    "version",
++    "<uint32 1>",
++  ]);
++  await mockSetup(portalObjectPath, addMethodMethod, [
++    portalInterfaceName,
++    "CreateSession",
++    "a{sv}",
++    "o",
++    `ret = "${SESSION_HANDLE}"`,
++  ]);
++  await mockSetup(portalObjectPath, addObjectMethod, [
++    SESSION_HANDLE,
++    sessionInterfaceName,
++    "@a{sv} {}",
++    "@a(ssss) [('Close', '', '', '')]",
++  ]);
++  await mockSetup(portalObjectPath, addMethodMethod, [
++    portalInterfaceName,
++    "Start",
++    "ossa{sv}",
++    "o",
++    `ret = "${mockRequestObjectPath}/foobar"`,
++  ]);
++  await mockSetup(portalObjectPath, addMethodMethod, [
++    portalInterfaceName,
++    "GetPipes",
++    "oa{sv}",
++    "hhh",
++    `ret = (dbus.types.UnixFd(${FDS_MOCK.stdin.fd}), dbus.types.UnixFd(${FDS_MOCK.stdout.fd}), dbus.types.UnixFd(${FDS_MOCK.stderr.fd}))`,
++  ]);
++
++  optionalPermissionsPromptHandler.init();
++  optionalPermissionsPromptHandler.acceptPrompt = true;
++  await AddonTestUtils.promiseStartupManager();
++  await setupHosts(SCRIPTS);
++});
++
++async function verifyDbusMockCall(objectPath, method, offset) {
++  let getCalls = await lazy.Subprocess.call({
++    command: await lazy.Subprocess.pathSearch("gdbus"),
++    arguments: [
++      "call",
++      "--session",
++      "-d",
++      portalBusName,
++      "-o",
++      objectPath,
++      "-m",
++      getCallsMethod,
++    ],
++  });
++  let out = await getCalls.stdout.readString();
++  out = out.match(/\((@a\(tsav\) )?\[(.*)\],\)/)[2];
++  let calls = out.matchAll(/\(.*?\),?/g);
++  let methodCalled = false;
++  let params = {};
++  let i = 0;
++  for (let call of calls) {
++    if (i++ < offset) {
++      continue;
++    }
++    let matches = call[0].match(
++      /\((uint64 )?(?<timestamp>\d+), '(?<method>\w+)', (@av )?\[(?<params>.*)\]\),?/
++    );
++    ok(parseFloat(matches.groups.timestamp), "timestamp is valid");
++    if (matches.groups.method == method) {
++      methodCalled = true;
++      params = matches.groups.params;
++      break;
++    }
++  }
++  if (method) {
++    ok(methodCalled, `The ${method} mock was called`);
++  } else {
++    equal(i, 0, "No method mock was called");
++  }
++  return { offset: i, params: params };
++}
++
++add_task(async function test_talk_to_portal() {
++  await mockSetup(portalObjectPath, clearCallsMethod, []);
++
++  // Make sure the portal is considered available
++  await mockSetup(portalObjectPath, updatePropertiesMethod, [
++    portalInterfaceName,
++    "{'version': <uint32 1>}",
++  ]);
++
++  // dbusmock's logging output doesn't reveal the sender name,
++  // so run dbus-monitor in parallel. The sender name is needed to build the
++  // object path of the Request that is returned by the portal's Start method.
++  let dbusMonitor = await lazy.Subprocess.call({
++    command: await lazy.Subprocess.pathSearch("dbus-monitor"),
++    arguments: [
++      "--session",
++      `interface='${portalInterfaceName}', member='CreateSession'`,
++    ],
++  });
++
++  let extension = ExtensionTestUtils.loadExtension({
++    background,
++    manifest: {
++      applications: { gecko: { id: ID } },
++      optional_permissions: ["nativeMessaging"],
++    },
++    useAddonManager: "temporary",
++  });
++
++  await extension.startup();
++  await withHandlingUserInput(extension, async () => {
++    extension.sendMessage("request");
++    await extension.awaitMessage("ready");
++  });
++
++  let handleToken = "";
++  let senderName = "";
++
++  // Verify that starting the extension talks to the mock native messaging
++  // portal (i.e. CreateSession and Start are called with the expected
++  // arguments).
++  let result = await verifyDbusMockCall(portalObjectPath, "CreateSession", 0);
++  result = await verifyDbusMockCall(portalObjectPath, "Start", result.offset);
++  let match = result.params.match(/{'handle_token': <'(?<token>.*)'>}/);
++  ok(match, "Start arguments contain a handle token");
++  handleToken = match.groups.token;
++
++  // Extract the sender name from the dbus-monitor process's output.
++  let dbusMonitorOutput = await dbusMonitor.stdout.readString();
++  let lines = dbusMonitorOutput.split("\n");
++  for (let i in lines) {
++    let line = lines[i];
++    if (!line) {
++      continue;
++    }
++    if (line.startsWith("method call")) {
++      let match = line.match(/sender=(\S*)/);
++      ok(match, "dbus-monitor output informs us of the sender");
++      senderName = match[1];
++    }
++  }
++  ok(senderName, "Got the sender name");
++  await dbusMonitor.kill();
++
++  // Mock the Request object that is expected to be created in response to
++  // calling the Start method on the native messaging portal, wait for it to be
++  // available, and emit its Response signal.
++  let requestPath = `${mockRequestObjectPath}/${senderName
++    .slice(1)
++    .replace(".", "_")}/${handleToken}`;
++  await mockSetup(portalObjectPath, addObjectMethod, [
++    requestPath,
++    "org.freedesktop.portal.Request",
++    "@a{sv} {}",
++    "@a(ssss) []",
++  ]);
++  let waitForRequestObject = await lazy.Subprocess.call({
++    command: await lazy.Subprocess.pathSearch("gdbus"),
++    arguments: [
++      "introspect",
++      "--session",
++      "-d",
++      portalBusName,
++      "-o",
++      requestPath,
++      "-p",
++    ],
++  });
++  await waitForRequestObject.wait();
++  await mockSetup(requestPath, emitSignalDetailedMethod, [
++    "org.freedesktop.portal.Request",
++    "Response",
++    "ua{sv}",
++    "[<uint32 0>, <@a{sv} {}>]",
++    `{'destination': <'${senderName}'>}`,
++  ]);
++
++  // Verify that the GetPipes method of the native messaging portal mock was
++  // called as expected after the Start request completed.
++  await verifyDbusMockCall(portalObjectPath, "GetPipes", result.offset);
++
++  await extension.unload();
++
++  // Verify that the native messaging portal session is properly closed when
++  // the extension is unloaded.
++  await verifyDbusMockCall(SESSION_HANDLE, "Close", 0);
++});
++
++add_task(async function test_portal_unavailable() {
++  await mockSetup(portalObjectPath, clearCallsMethod, []);
++
++  // Make sure the portal is NOT considered available
++  await mockSetup(portalObjectPath, updatePropertiesMethod, [
++    portalInterfaceName,
++    "{'version': <uint32 0>}",
++  ]);
++
++  let extension = ExtensionTestUtils.loadExtension({
++    background,
++    manifest: {
++      applications: { gecko: { id: ID } },
++      optional_permissions: ["nativeMessaging"],
++    },
++    useAddonManager: "temporary",
++  });
++
++  let logged = false;
++  function listener(msg) {
++    logged ||= /Native messaging portal is not available/.test(msg.message);
++  }
++  Services.console.registerListener(listener);
++  registerCleanupFunction(() => {
++    Services.console.unregisterListener(listener);
++  });
++
++  await extension.startup();
++  await withHandlingUserInput(extension, async () => {
++    extension.sendMessage("request");
++    await extension.awaitMessage("ready");
++  });
++
++  ok(logged, "Non availability of the portal was logged");
++
++  // Verify that the native messaging portal wasn't talked to,
++  // because it advertised itself as not available.
++  await verifyDbusMockCall(portalObjectPath, null, 0);
++
++  await extension.unload();
++});
+diff --git a/toolkit/modules/subprocess/Subprocess.jsm b/toolkit/modules/subprocess/Subprocess.jsm
+--- a/toolkit/modules/subprocess/Subprocess.jsm
++++ b/toolkit/modules/subprocess/Subprocess.jsm
+@@ -202,10 +202,23 @@
+     // Promise.resolve lets us get around returning one of the Promise.jsm
+     // pseudo-promises returned by Task.jsm.
+     let path = lazy.SubprocessImpl.pathSearch(command, environment);
+     return Promise.resolve(path);
+   },
++
++  /**
++   * Connect to an already-running subprocess
++   * given the file descriptors for its stdin, stdout and stderr.
++   *
++   * @param {int[]} [fds]
++   *        A list of three file descriptors [stdin, stdout, stderr].
++   *
++   * @returns {Process}
++   */
++  connectRunning(fds) {
++    return lazy.SubprocessImpl.connectRunning(fds);
++  },
+ };
+ 
+ Object.assign(Subprocess, SubprocessConstants);
+ Object.freeze(Subprocess);
+ 
+diff --git a/toolkit/modules/subprocess/subprocess_common.jsm b/toolkit/modules/subprocess/subprocess_common.jsm
+--- a/toolkit/modules/subprocess/subprocess_common.jsm
++++ b/toolkit/modules/subprocess/subprocess_common.jsm
+@@ -587,17 +587,26 @@
+      *           The process ID of the process, assigned by the operating system.
+      *           @readonly
+      */
+     this.pid = pid;
+ 
++    /**
++     * @property {boolean} managed
++     *           Whether the process is externally managed, or spawned by us.
++     *           @readonly
++     */
++    this.managed = pid == 0;
++
+     this.exitCode = null;
+ 
+     this.exitPromise = new Promise(resolve => {
+-      this.worker.call("wait", [this.id]).then(({ exitCode }) => {
+-        resolve(Object.freeze({ exitCode }));
+-        this.exitCode = exitCode;
+-      });
++      if (!this.managed) {
++        this.worker.call("wait", [this.id]).then(({ exitCode }) => {
++          resolve(Object.freeze({ exitCode }));
++          this.exitCode = exitCode;
++        });
++      }
+     });
+ 
+     if (fds[0] !== undefined) {
+       /**
+        * @property {OutputPipe} stdin
+@@ -641,10 +650,18 @@
+     return worker.call("spawn", [options]).then(({ processId, fds, pid }) => {
+       return new this(worker, processId, fds, pid);
+     });
+   }
+ 
++  static fromRunning(fds) {
++    let worker = this.getWorker();
++
++    return worker.call("connectRunning", [fds]).then(({ processId, fds }) => {
++      return new this(worker, processId, fds, 0);
++    });
++  }
++
+   static get WORKER_URL() {
+     throw new Error("Not implemented");
+   }
+ 
+   static get WorkerClass() {
+@@ -678,10 +695,14 @@
+    * @returns {Promise<object>}
+    *          Resolves to an object with an `exitCode` property when the process
+    *          has exited.
+    */
+   kill(timeout = 300) {
++    if (this.managed) {
++      throw new Error("Cannot kill a process managed externally");
++    }
++
+     // If the process has already exited, don't bother sending a signal.
+     if (this.exitCode != null) {
+       return this.wait();
+     }
+ 
+@@ -712,8 +733,11 @@
+    * value of the error code. On Windows, an exit code of -9 indicates
+    * that the process was killed via the {@linkcode BaseProcess#kill kill()}
+    * method.
+    */
+   wait() {
++    if (this.managed) {
++      throw new Error("Cannot wait on a process managed externally");
++    }
+     return this.exitPromise;
+   }
+ }
+diff --git a/toolkit/modules/subprocess/subprocess_unix.jsm b/toolkit/modules/subprocess/subprocess_unix.jsm
+--- a/toolkit/modules/subprocess/subprocess_unix.jsm
++++ b/toolkit/modules/subprocess/subprocess_unix.jsm
+@@ -198,8 +198,12 @@
+     }
+     let error = new Error(`Executable not found: ${bin}`);
+     error.errorCode = SubprocessConstants.ERROR_BAD_EXECUTABLE;
+     throw error;
+   },
++
++  connectRunning(fds) {
++    return Process.fromRunning(fds);
++  },
+ };
+ 
+ var SubprocessImpl = SubprocessUnix;
+diff --git a/toolkit/modules/subprocess/subprocess_win.jsm b/toolkit/modules/subprocess/subprocess_win.jsm
+--- a/toolkit/modules/subprocess/subprocess_win.jsm
++++ b/toolkit/modules/subprocess/subprocess_win.jsm
+@@ -186,8 +186,14 @@
+     }
+     let error = new Error(`Executable not found: ${bin}`);
+     error.errorCode = SubprocessConstants.ERROR_BAD_EXECUTABLE;
+     throw error;
+   },
++
++  connectRunning(fds) {
++    // Not relevant (yet?) on Windows. This is currently used only on Unix
++    // for native messaging through the WebExtensions portal.
++    throw new Error("Not implemented");
++  },
+ };
+ 
+ var SubprocessImpl = SubprocessWin;
+diff --git a/toolkit/modules/subprocess/subprocess_worker_common.js b/toolkit/modules/subprocess/subprocess_worker_common.js
+--- a/toolkit/modules/subprocess/subprocess_worker_common.js
++++ b/toolkit/modules/subprocess/subprocess_worker_common.js
+@@ -57,11 +57,15 @@
+     });
+ 
+     this.pid = null;
+     this.pipes = [];
+ 
+-    this.spawn(options);
++    if (options.managed) {
++      this.connectRunning(options);
++    } else {
++      this.spawn(options);
++    }
+   }
+ 
+   /**
+    * Waits for the process to exit and all of its pending IO operations to
+    * complete.
+@@ -94,20 +98,33 @@
+ 
+     return pipe.close(force).then(() => ({ data: {} }));
+   },
+ 
+   spawn(options) {
++    options.managed = false;
+     let process = new Process(options);
+     let processId = process.id;
+ 
+     io.addProcess(process);
+ 
+     let fds = process.pipes.map(pipe => pipe.id);
+ 
+     return { data: { processId, fds, pid: process.pid } };
+   },
+ 
++  connectRunning(fds) {
++    let options = {};
++    options.managed = true;
++    options.fds = fds;
++    let process = new Process(options);
++    let processId = process.id;
++
++    io.addProcess(process);
++
++    return { data: { processId, fds: process.pipes.map(pipe => pipe.id) } };
++  },
++
+   kill(processId, force = false) {
+     let process = io.getProcess(processId);
+ 
+     process.kill(force ? 9 : 15);
+ 
+@@ -160,10 +177,22 @@
+   waitForNoProcesses() {
+     return Promise.all(
+       Array.from(io.processes.values(), proc => proc.awaitFinished())
+     );
+   },
++
++  getFds(processId) {
++    let process = io.getProcess(processId);
++    let pipes = process.pipes;
++    return {
++      data: [
++        pipes[0].fd.toString(),
++        pipes[1].fd.toString(),
++        pipes[2].fd.toString(),
++      ],
++    };
++  },
+ };
+ 
+ onmessage = event => {
+   io.messageCount--;
+ 
+diff --git a/toolkit/modules/subprocess/subprocess_worker_unix.js b/toolkit/modules/subprocess/subprocess_worker_unix.js
+--- a/toolkit/modules/subprocess/subprocess_worker_unix.js
++++ b/toolkit/modules/subprocess/subprocess_worker_unix.js
+@@ -404,10 +404,26 @@
+       }
+     }
+   }
+ 
+   /**
++   * Connect to an already running process that was spawned externally.
++   *
++   * @param {object} options
++            An object with a 'fds' attribute that's an array 
++            of file descriptors (stdin, stdout and stderr).
++   */
++  connectRunning(options) {
++    this.pid = 0;
++    this.pipes = [];
++    this.pipes.push(new OutputPipe(this, unix.Fd(options.fds[0])));
++    this.pipes.push(new InputPipe(this, unix.Fd(options.fds[1])));
++    this.pipes.push(new InputPipe(this, unix.Fd(options.fds[2])));
++    // Not creating a poll fd here, because this process is managed externally.
++  }
++
++  /**
+    * Called when input is available on our sentinel file descriptor.
+    *
+    * @see pollEvents
+    */
+   onReady() {
+@@ -455,11 +471,13 @@
+       this.exitCode = -sig;
+     } else {
+       this.exitCode = unix.WEXITSTATUS(status.value);
+     }
+ 
+-    this.fd.dispose();
++    if (this.fd !== undefined) {
++      this.fd.dispose();
++    }
+     io.updatePollFds();
+     this.resolveExit(this.exitCode);
+     return this.exitCode;
+   }
+ }
+@@ -519,11 +537,13 @@
+ 
+   updatePollFds() {
+     let handlers = [
+       this.signal,
+       ...this.pipes.values(),
+-      ...this.processes.values(),
++      // Filter out processes without a poll fd, because those are managed
++      // externally, not spawned by us.
++      ...Array.from(this.processes.values()).filter(p => p.fd !== undefined),
+     ];
+ 
+     handlers = handlers.filter(handler => handler.pollEvents);
+ 
+     // Our poll loop is only useful if we've got at least 1 thing to poll other than our own
+diff --git a/toolkit/modules/subprocess/subprocess_worker_win.js b/toolkit/modules/subprocess/subprocess_worker_win.js
+--- a/toolkit/modules/subprocess/subprocess_worker_win.js
++++ b/toolkit/modules/subprocess/subprocess_worker_win.js
+@@ -603,10 +603,16 @@
+ 
+     libc.ResumeThread(procInfo.hThread);
+     libc.CloseHandle(procInfo.hThread);
+   }
+ 
++  connectRunning(options) {
++    // Not relevant (yet?) on Windows. This is currently used only on Unix
++    // for native messaging through the WebExtensions portal.
++    throw new Error("Not implemented");
++  }
++
+   /**
+    * Called when our process handle is signaled as active, meaning the process
+    * has exited.
+    */
+   onReady() {
+diff --git a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js b/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
+--- a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
++++ b/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
+@@ -854,10 +854,87 @@
+     },
+     "Subprocess.call should fail for a bad executable"
+   );
+ });
+ 
++add_task(async function test_subprocess_connectRunning() {
++  if (AppConstants.platform != "win") {
++    let tempFile = Services.dirsvc.get("TmpD", Ci.nsIFile);
++    tempFile.append("test-subprocess-connectRunning.txt");
++    if (tempFile.exists()) {
++      tempFile.remove(true);
++    }
++    registerCleanupFunction(async function() {
++      tempFile.remove(true);
++    });
++
++    let running = await Subprocess.call({
++      command: await Subprocess.pathSearch("tee"),
++      arguments: [tempFile.path],
++      environment: {},
++      stderr: "pipe",
++    });
++    equal(
++      running.managed,
++      false,
++      "A process spawned by us is not externally managed"
++    );
++    let { getSubprocessImplForTest } = ChromeUtils.import(
++      "resource://gre/modules/Subprocess.jsm"
++    );
++    let worker = getSubprocessImplForTest().Process.getWorker();
++    let fds = await worker.call("getFds", [running.id]);
++    let proc = await Subprocess.connectRunning(fds);
++    greater(proc.id, 0, "Already running process id is valid");
++    equal(proc.pid, 0, "Already running process pid is 0");
++    equal(
++      proc.managed,
++      true,
++      "A process not spawned by us is externally managed"
++    );
++    Assert.throws(
++      () => proc.wait(),
++      /Cannot wait/,
++      "A process externally managed cannot be waited on"
++    );
++    Assert.throws(
++      () => proc.kill(),
++      /Cannot kill/,
++      "A process externally managed cannot be killed"
++    );
++    [proc.stdin, proc.stdout, proc.stderr].forEach((pipe, i) =>
++      greater(
++        pipe.id,
++        0,
++        "File descriptor (stdin) for already running process is valid"
++      )
++    );
++    let contents = "lorem ipsum";
++    let writeOp = proc.stdin.write(contents);
++    equal(
++      (await writeOp).bytesWritten,
++      contents.length,
++      "Contents correctly written to stdin"
++    );
++    let readOp = running.stdout.readString(contents.length);
++    equal(await readOp, contents, "Pipes communication is functional");
++    await running.kill();
++
++    ok(tempFile.exists(), "temp file was written to");
++    equal(
++      await IOUtils.readUTF8(tempFile.path),
++      contents,
++      "Contents correctly written to temp file"
++    );
++  } else {
++    Assert.throws(
++      () => Subprocess.connectRunning([42, 58, 63]),
++      /Not implemented/
++    );
++  }
++});
++
+ add_task(async function test_cleanup() {
+   let { getSubprocessImplForTest } = ChromeUtils.import(
+     "resource://gre/modules/Subprocess.jsm"
+   );
+ 
+diff --git a/widget/gtk/WidgetUtilsGtk.h b/widget/gtk/WidgetUtilsGtk.h
+--- a/widget/gtk/WidgetUtilsGtk.h
++++ b/widget/gtk/WidgetUtilsGtk.h
+@@ -46,10 +46,11 @@
+ }
+ 
+ enum class PortalKind {
+   FilePicker,
+   MimeHandler,
++  NativeMessaging,
+   Settings,
+   Location,
+   OpenUri,
+ };
+ bool ShouldUsePortal(PortalKind);
+diff --git a/widget/gtk/WidgetUtilsGtk.cpp b/widget/gtk/WidgetUtilsGtk.cpp
+--- a/widget/gtk/WidgetUtilsGtk.cpp
++++ b/widget/gtk/WidgetUtilsGtk.cpp
+@@ -146,10 +146,12 @@
+         return StaticPrefs::widget_use_xdg_desktop_portal_file_picker();
+       case PortalKind::MimeHandler:
+         // Mime portal breaks default browser handling, see bug 1516290.
+         autoBehavior = IsRunningUnderFlatpakOrSnap();
+         return StaticPrefs::widget_use_xdg_desktop_portal_mime_handler();
++      case PortalKind::NativeMessaging:
++        return StaticPrefs::widget_use_xdg_desktop_portal_native_messaging();
+       case PortalKind::Settings:
+         autoBehavior = true;
+         return StaticPrefs::widget_use_xdg_desktop_portal_settings();
+       case PortalKind::Location:
+         return StaticPrefs::widget_use_xdg_desktop_portal_location();
+

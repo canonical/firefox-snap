@@ -178,9 +178,8 @@ diff --git a/python/mozbuild/mozbuild/mozinfo.py b/python/mozbuild/mozbuild/mozi
  
 +    d["is_ubuntu"] = "Ubuntu" in platform.version()
 +
+     if "MOZ_ENABLE_DBUS" in substs:
+         d["dbus_enabled"] = bool(substs.get("MOZ_ENABLE_DBUS"))
+ 
      return d
  
- 
- def write_mozinfo(file, config, env=os.environ):
-     """Write JSON data about the configuration specified in config and an
-
