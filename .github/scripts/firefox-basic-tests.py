@@ -12,9 +12,12 @@ if __name__ == '__main__':
     pid = int(sys.argv[1])
     version = sys.argv[2]
 
+    print('runtime version: {}'.format(version))
+
     marionette = marionette_driver.marionette.Marionette()
     marionette.start_session()
-    print(json.dumps(marionette.session_capabilities, indent=2))
+    print('session capabilities: {}'
+          .format(json.dumps(marionette.session_capabilities, indent=2)))
     assert(marionette.session_capabilities['moz:processID'] == pid)
     assert(marionette.session_capabilities['moz:headless'])
     assert(marionette.session_capabilities['browserName'] == 'firefox')
@@ -22,7 +25,9 @@ if __name__ == '__main__':
 
     marionette.navigate('about:support')
     v = marionette.find_element(marionette_driver.by.By.ID, 'version-box').text
+    print('about:support version: {}'.format(v))
     assert(version.endswith(v))
     d = marionette.find_element(marionette_driver.by.By.ID,
                                 'distributionid-box').text
+    print('about:support distribution ID: {}'.format(d))
     assert(d == 'canonical-002')
