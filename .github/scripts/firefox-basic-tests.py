@@ -24,10 +24,16 @@ if __name__ == '__main__':
     assert(marionette.session_capabilities['browserVersion'] in version)
 
     marionette.navigate('about:support')
-    v = marionette.find_element(marionette_driver.by.By.ID, 'version-box').text
-    print('about:support version: {}'.format(v))
-    assert(version.endswith(v))
-    d = marionette.find_element(marionette_driver.by.By.ID,
-                                'distributionid-box').text
-    print('about:support distribution ID: {}'.format(d))
-    assert(d == 'canonical-002')
+    versionbox = \
+        marionette.find_element(marionette_driver.by.By.ID, 'version-box')
+    marionette_driver.wait.Wait(marionette).until(
+        lambda m:
+        len(versionbox.text) > 0 and version.endswith(versionbox.text))
+    print('about:support version: {}'.format(versionbox.text))
+
+    distributionidbox = \
+        marionette.find_element(
+            marionette_driver.by.By.ID, 'distributionid-box')
+    marionette_driver.wait.Wait(marionette).until(
+        lambda m: distributionidbox.text == 'canonical-002')
+    print('about:support distribution ID: {}'.format(distributionidbox.text))
