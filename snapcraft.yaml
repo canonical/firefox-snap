@@ -187,7 +187,7 @@ parts:
     build-packages:
       - wget
     build-environment:
-      - NODEJS_RELEASE: "v16.18.0"
+      - NODEJS_RELEASE: "v16.18.1"
     override-pull: |
       ROOT=https://nodejs.org/dist/$NODEJS_RELEASE/node-$NODEJS_RELEASE-linux-
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
