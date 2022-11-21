@@ -310,7 +310,6 @@ parts:
       - hunspell
       - mozconfig
       - nodejs
-      - pipewire
       - rust
       - wasi-sdk
     build-packages:
@@ -431,7 +430,12 @@ parts:
     stage-packages:
       - libcurl4
       - libpci3
+      - libpipewire-0.3-0
+      - libpipewire-0.3-modules
+      - libspa-0.2-modules
       - libxt6
+      - pipewire-bin
+      - pipewire-pulse
     prime:
       - default256.png
       - firefox.desktop
@@ -450,6 +454,7 @@ parts:
       - usr/lib/*/libnettle.so.*
       - usr/lib/*/libnghttp2.so.*
       - usr/lib/*/libpci.so.*
+      - usr/lib/*/libpipewire*.so*
       - usr/lib/*/libroken.so.*
       - usr/lib/*/librtmp.so.*
       - usr/lib/*/libsasl2.so.*
@@ -457,6 +462,9 @@ parts:
       - usr/lib/*/libssl.so.*
       - usr/lib/*/libwind.so.*
       - usr/lib/*/libXt.so.*
+      - usr/lib/*/pipewire-*
+      - usr/lib/*/spa-*
+      - usr/share/pipewire
 
   firefox-langpacks:
     plugin: nil
@@ -534,25 +542,6 @@ parts:
       - usr/lib/*/libx265.so.*
       - usr/lib/*/libxvidcore.so.*
       - usr/lib/*/libzvbi.so.*
-
-  pipewire:
-    after: [ meson-deps ]
-    source: https://gitlab.freedesktop.org/pipewire/pipewire/-/archive/0.3.32/pipewire-0.3.32.tar.gz
-    plugin: meson
-    meson-parameters:
-      - --prefix=/usr
-      - --buildtype=release
-      - --strip
-      - -Dalsa=disabled
-      - -Dpipewire-alsa=disabled
-      - -Djack=disabled
-      - -Dpipewire-jack=disabled
-      - -Dsession-managers=[]
-    prime:
-      - usr/lib/*/pipewire-*
-      - usr/lib/*/spa-*
-      - usr/lib/*/libpipewire*.so*
-      - usr/share/pipewire
 
   apikeys:
     plugin: nil
