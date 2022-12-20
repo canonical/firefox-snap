@@ -29,11 +29,18 @@ def get_latest_build(candidate):
 
 
 def test_version(current_version, candidate):
-    nv = version.parse(candidate)
-    cv = version.parse(current_version.split('-')[0])
+    # Drop the "esr" suffix from the candidate, since version.parse
+    # only supports versions that follow the PEP 440 requirements.
+    nv = version.parse(candidate.split("esr")[0])
+    # Drop the potential build number suffix, as well as the "esr"
+    # suffix for the exact reasons as above.
+    cv = version.parse(current_version.split('-')[0].split("esr")[0])
     if nv >= cv:
         build = get_latest_build(candidate)
-        if nv > cv or build > int(current_version.split('-')[1]):
+        # Only try to get the build number if it's actually present.
+        new_build = "-" in current_version and \
+            build > int(current_version.split('-')[1])
+        if nv > cv or new_build:
             return '{}-{}'.format(candidate, build)
     return None
 
