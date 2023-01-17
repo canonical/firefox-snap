@@ -92,7 +92,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          ref: beta
+          ref: nightly
           persist-credentials: false
       - name: Extract current version
         run: ./.github/scripts/extract-current-version.sh
@@ -108,4 +108,4 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git commit -m "Bump version to the latest nightly (${{ env.new_version }})."
-          git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git beta
+          git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git nightly
