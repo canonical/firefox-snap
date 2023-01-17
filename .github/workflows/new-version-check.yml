@@ -87,3 +87,25 @@ jobs:
           git config user.email "actions@github.com"
           git commit -m "Bump version to the latest beta (${{ env.new_version }})."
           git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git beta
+  check-new-nightly:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: beta
+          persist-credentials: false
+      - name: Extract current version
+        run: ./.github/scripts/extract-current-version.sh
+      - name: Install deps
+        run: sudo apt update && sudo apt install jq
+      - name: Fetch new version
+        run: ./.github/scripts/check-new-nightly.sh ${{ env.current_version }}
+      - name: Update snapcraft.yaml with the new version
+        if: env.new_version
+        run: |
+          sed -i "s/^version: \"\(.*\)\"$/version: \"${{ env.new_version }}\"/" snapcraft.yaml
+          git add snapcraft.yaml
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git commit -m "Bump version to the latest nightly (${{ env.new_version }})."
+          git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git beta
