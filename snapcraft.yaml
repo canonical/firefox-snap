@@ -140,7 +140,11 @@ parts:
       - wget
     build-environment:
       - LLVM_RELEASE: "14.0.0"
+      - LLVM_RELEASE_15: "15.0.6"
     override-pull: |
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        LLVM_RELEASE=$LLVM_RELEASE_15
+      fi
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
       BINARIES_BASENAME=clang+llvm-$LLVM_RELEASE
@@ -153,11 +157,15 @@ parts:
       fi
       wget -O - $ROOT/$BINARIES_BASENAME-$BINARIES_SUFFIX | tar -x --xz
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        # And cmake-$LLVM_RELEASE.src needed on LLVM >= 15.0.0
+        wget -O - $ROOT/cmake-$LLVM_RELEASE.src.tar.xz | tar -x --xz
+        mv cmake-$LLVM_RELEASE.src cmake
         # And the sources to build LLVMgold.so, which isn't distributed in a binary form
         wget -O - $ROOT/llvm-$LLVM_RELEASE.src.tar.xz | tar -x --xz
       fi
     override-build: |
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        LLVM_RELEASE=$LLVM_RELEASE_15
         cd llvm-$LLVM_RELEASE.src
         mkdir build
         cd build
@@ -165,6 +173,9 @@ parts:
         make -j$SNAPCRAFT_PARALLEL_BUILD_COUNT install-LLVMgold-stripped
       fi
     override-stage: |
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+        LLVM_RELEASE=$LLVM_RELEASE_15
+      fi
       snapcraftctl stage
       mkdir -p usr
       cp -R $SNAPCRAFT_PART_SRC/clang+llvm-$LLVM_RELEASE-*/* usr/
