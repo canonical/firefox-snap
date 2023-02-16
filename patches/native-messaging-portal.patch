@@ -964,11 +964,10 @@
 +};
 --- a/toolkit/components/extensions/test/xpcshell/native_messaging.ini
 +++ b/toolkit/components/extensions/test/xpcshell/native_messaging.ini
-@@ -15,4 +15,8 @@ skip-if =
- run-sequentially = very high failure rate in parallel
+@@ -15,4 +15,7 @@ skip-if =
  [test_ext_native_messaging_perf.js]
  skip-if = tsan # Unreasonably slow, bug 1612707
-+  os == "win" && os_version == "6.1" # Skip on Azure - frequent failure
+   os == "win" && os_version == "6.1" # Skip on Azure - frequent failure
 +[test_ext_native_messaging_portal.js]
 +run-if = (os == 'linux' && toolkit == 'gtk' && dbus_enabled)
 +tags = portal
