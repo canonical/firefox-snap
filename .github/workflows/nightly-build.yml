@@ -18,6 +18,8 @@ jobs:
       - uses: actions/checkout@v3
         with:
           ref: nightly
+      - name: Free up some disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc "$AGENT_TOOLSDIRECTORY"
       - name: Extract current version
         id: extract-current-version
         run: ./.github/scripts/extract-current-version.sh
