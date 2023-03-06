@@ -126,6 +126,7 @@ parts:
     source: https://github.com/mesonbuild/meson.git
     source-branch: '0.62'
     override-build: |
+      craftctl default
       pip install .
     build-packages:
       - python3-pip
@@ -154,7 +155,9 @@ parts:
     plugin: nil
     after:
       - rust
-    override-build: cargo install cbindgen
+    override-build: |
+      craftctl default
+      cargo install cbindgen
     override-prime: ''
 
   clang:
@@ -187,6 +190,7 @@ parts:
         wget -O - $ROOT/llvm-$LLVM_RELEASE.src.tar.xz | tar -x --xz
       fi
     override-build: |
+      craftctl default
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         cd llvm-$LLVM_RELEASE.src
         mkdir build
@@ -224,6 +228,7 @@ parts:
         git clone "${REPO}" . && git checkout "${SHA1}"
       fi
     override-build: |
+      craftctl default
       if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
         cargo build --release
         cp target/release/dump_syms $CRAFT_STAGE/usr/bin/
@@ -238,6 +243,7 @@ parts:
   hunspell:
     plugin: nil
     override-build: |
+      craftctl default
       set -eu
       apt download $(apt-cache search '^hunspell-.*$' |
         awk '!/myspell|dbgsym|tools|transitional|dependency/{printf "%s ", $1}')
@@ -261,6 +267,7 @@ parts:
       wget $ROOT/wasi-sysroot-$WASI_RELEASE.tar.gz
       wget $ROOT/libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
     override-build: |
+      craftctl default
       tar -C $CRAFT_STAGE -xf wasi-sysroot-$WASI_RELEASE.tar.gz
       tar -C $CRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
     override-prime: ''
@@ -282,6 +289,7 @@ parts:
       fi
       wget -O - $ROOT$SUFFIX | tar -x --xz
     override-build: |
+      craftctl default
       cp -R node-$NODEJS_RELEASE-linux-*/ $CRAFT_PART_INSTALL/usr/
     override-prime: ''
 
@@ -340,6 +348,7 @@ parts:
       mkdir -p $CRAFT_STAGE/debug-symbols
       cp toolkit/crashreporter/tools/upload_symbols.py $CRAFT_STAGE/debug-symbols/
     override-build: |
+      craftctl default
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       BUILD_DBGSYMS=false
@@ -552,6 +561,7 @@ parts:
       - gpg
       - jq
     override-build: |
+      craftctl default
       MOZCONFIG="$CRAFT_STAGE/mozconfig"
       gpg -d --batch --passphrase "$(base64 -d $CRAFT_PROJECT_DIR/.passphrase)" -o apikeys $CRAFT_PROJECT_DIR/.apikeys
       cat apikeys | jq .MOZ_GOOGLE_LOCATION_SERVICE_API_KEY | tr -d '"' > $CRAFT_PART_INSTALL/gls-gapi.data
