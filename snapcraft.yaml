@@ -385,18 +385,26 @@ parts:
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
       fi
       GNOME_SDK_SNAP=/snap/gnome-42-2204-sdk/current
+      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+        # "clang -dumpmachine" returns "x86_64-unknown-linux-gnu" on
+        # amd64 (at least the binaries they distribute), but what we
+        # really need is "x86_64-pc-linux-gnu"; so let's hard-code it.
+        export TARGET_TRIPLET="x86_64-pc-linux-gnu"
+      else
+        export TARGET_TRIPLET=$(clang -dumpmachine)
+      fi
       export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
+      export LDFLAGS="-Wl,-rpath-link=$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/dist/bin${LDFLAGS:+ $LDFLAGS}"
+      export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       export WASI_SYSROOT=$CRAFT_STAGE/wasi-sysroot
       export MOZBUILD_STATE_PATH=$CRAFT_PART_BUILD/.mozbuild
       unset PYTHONPATH
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # Needed for PGO-enabled builds that execute the built binaries. This should mirror the link paths in $LDFLAGS.
-        export LD_LIBRARY_PATH=$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET:$GNOME_SDK_SNAP/usr/lib
+        export LD_LIBRARY_PATH="$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET:$GNOME_SDK_SNAP/usr/lib"
         # Ensure the instrumented binary is run against the right version of libssl3.so and libnss3.so
         # (locally-built versions are more recent than the ones in the gnome platform snap)
-        export LD_LIBRARY_PATH=$CRAFT_PART_BUILD/obj-x86_64-pc-linux-gnu/instrumented/dist/bin:$LD_LIBRARY_PATH
-      else
-        unset LD_LIBRARY_PATH
+        export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/instrumented/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       fi
       MACH="/usr/bin/python3 ./mach"
       $MACH configure --prefix=$CRAFT_PART_INSTALL/usr
