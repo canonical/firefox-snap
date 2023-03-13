@@ -121,17 +121,6 @@ layout:
     bind: $SNAP/gnome-platform/usr/share/libdrm
 
 parts:
-  meson-deps:
-    plugin: nil
-    source: https://github.com/mesonbuild/meson.git
-    source-branch: '0.62'
-    override-build: |
-      craftctl default
-      pip install .
-    build-packages:
-      - python3-pip
-      - ninja-build
-
   rust:
     plugin: nil
     build-packages:
