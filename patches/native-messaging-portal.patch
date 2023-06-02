@@ -1,6 +1,6 @@
 --- a/modules/libpref/init/StaticPrefList.yaml
 +++ b/modules/libpref/init/StaticPrefList.yaml
-@@ -14448,6 +14448,16 @@
+@@ -15541,6 +15541,16 @@
    value: 2
    mirror: always
  
@@ -19,7 +19,7 @@
  #  - 0: never
 --- a/python/mozbuild/mozbuild/mozinfo.py
 +++ b/python/mozbuild/mozbuild/mozinfo.py
-@@ -148,6 +148,9 @@ def build_dict(config, env=os.environ):
+@@ -146,6 +146,9 @@ def build_dict(config, env=os.environ):
  
      d["is_ubuntu"] = "Ubuntu" in platform.version()
  
@@ -31,7 +31,7 @@
  
 --- a/testing/mozharness/configs/unittests/linux_unittest.py
 +++ b/testing/mozharness/configs/unittests/linux_unittest.py
-@@ -34,7 +34,12 @@ else:
+@@ -33,7 +33,12 @@ else:
  #####
  config = {
      ###
@@ -45,11 +45,11 @@
      "installer_path": INSTALLER_PATH,
      "binary_path": BINARY_PATH,
      "xpcshell_name": XPCSHELL_NAME,
---- a/toolkit/components/extensions/NativeMessaging.jsm
-+++ b/toolkit/components/extensions/NativeMessaging.jsm
-@@ -34,6 +34,13 @@ XPCOMUtils.defineLazyModuleGetters(lazy,
-   OS: "resource://gre/modules/osfile.jsm",
- });
+--- a/toolkit/components/extensions/NativeMessaging.sys.mjs
++++ b/toolkit/components/extensions/NativeMessaging.sys.mjs
+@@ -19,6 +19,13 @@ ChromeUtils.defineESModuleGetters(lazy, 
+ 
+ const { ExtensionError, promiseTimeout } = ExtensionUtils;
  
 +XPCOMUtils.defineLazyServiceGetter(
 +  lazy,
@@ -61,7 +61,7 @@
  // For a graceful shutdown (i.e., when the extension is unloaded or when it
  // explicitly calls disconnect() on a native port), how long we give the native
  // application to exit before we start trying to kill it.  (in milliseconds)
-@@ -74,6 +81,14 @@ var NativeApp = class extends EventEmitt
+@@ -59,6 +66,14 @@ export var NativeApp = class extends Eve
      this.sendQueue = [];
      this.writePromise = null;
      this.cleanupStarted = false;
@@ -76,7 +76,7 @@
  
      this.startupPromise = lazy.NativeManifests.lookupManifest(
        "stdio",
-@@ -124,6 +139,54 @@ var NativeApp = class extends EventEmitt
+@@ -114,6 +129,54 @@ export var NativeApp = class extends Eve
        });
    }
  
@@ -130,8 +130,8 @@
 +
    /**
     * Open a connection to a native messaging host.
-    * @param {number} portId A unique internal ID that identifies the port.
-@@ -292,6 +355,15 @@ var NativeApp = class extends EventEmitt
+    *
+@@ -290,6 +353,15 @@ export var NativeApp = class extends Eve
  
      await this.startupPromise;
  
@@ -866,7 +866,7 @@
 +    ]
 --- a/toolkit/components/extensions/moz.build
 +++ b/toolkit/components/extensions/moz.build
-@@ -74,6 +74,7 @@ XPIDL_SOURCES += [
+@@ -77,6 +77,7 @@ XPIDL_SOURCES += [
      "extIWebNavigation.idl",
      "mozIExtensionAPIRequestHandling.idl",
      "mozIExtensionProcessScript.idl",
@@ -874,7 +874,7 @@
  ]
  
  XPIDL_MODULE = "webextensions"
-@@ -100,6 +101,13 @@ UNIFIED_SOURCES += [
+@@ -103,6 +104,13 @@ UNIFIED_SOURCES += [
      "WebExtensionPolicy.cpp",
  ]
  
@@ -964,7 +964,7 @@
 +};
 --- a/toolkit/components/extensions/test/xpcshell/native_messaging.ini
 +++ b/toolkit/components/extensions/test/xpcshell/native_messaging.ini
-@@ -15,4 +15,7 @@ skip-if =
+@@ -16,4 +16,7 @@ skip-if =
  [test_ext_native_messaging_perf.js]
  skip-if = tsan # Unreasonably slow, bug 1612707
    os == "win" && os_version == "6.1" # Skip on Azure - frequent failure
@@ -974,18 +974,16 @@
  [test_ext_native_messaging_unresponsive.js]
 --- /dev/null
 +++ b/toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js
-@@ -0,0 +1,380 @@
+@@ -0,0 +1,378 @@
 +/* -*- Mode: indent-tabs-mode: nil; js-indent-level: 2 -*- */
 +/* vim: set sts=2 sw=2 et tw=80: */
 +"use strict";
 +
 +const lazy = {};
 +
-+ChromeUtils.defineModuleGetter(
-+  lazy,
-+  "Subprocess",
-+  "resource://gre/modules/Subprocess.sys.mjs"
-+);
++ChromeUtils.defineESModuleGetters(lazy, {
++  Subprocess: "resource://gre/modules/Subprocess.sys.mjs",
++});
 +
 +AddonTestUtils.init(this);
 +AddonTestUtils.overrideCertDB();
@@ -1357,7 +1355,7 @@
 +});
 --- a/toolkit/modules/subprocess/Subprocess.sys.mjs
 +++ b/toolkit/modules/subprocess/Subprocess.sys.mjs
-@@ -190,6 +190,19 @@ export var Subprocess = {
+@@ -191,6 +191,19 @@ export var Subprocess = {
      let path = lazy.SubprocessImpl.pathSearch(command, environment);
      return Promise.resolve(path);
    },
@@ -1379,7 +1377,7 @@
  Object.assign(Subprocess, SubprocessConstants);
 --- a/toolkit/modules/subprocess/subprocess_common.sys.mjs
 +++ b/toolkit/modules/subprocess/subprocess_common.sys.mjs
-@@ -585,13 +585,22 @@ export class BaseProcess {
+@@ -581,13 +581,22 @@ export class BaseProcess {
       */
      this.pid = pid;
  
@@ -1406,7 +1404,7 @@
      });
  
      if (fds[0] !== undefined) {
-@@ -639,6 +648,14 @@ export class BaseProcess {
+@@ -635,6 +644,14 @@ export class BaseProcess {
      });
    }
  
@@ -1421,7 +1419,7 @@
    static get WORKER_URL() {
      throw new Error("Not implemented");
    }
-@@ -676,6 +693,10 @@ export class BaseProcess {
+@@ -672,6 +689,10 @@ export class BaseProcess {
     *          has exited.
     */
    kill(timeout = 300) {
@@ -1432,7 +1430,7 @@
      // If the process has already exited, don't bother sending a signal.
      if (this.exitCode != null) {
        return this.wait();
-@@ -710,6 +731,9 @@ export class BaseProcess {
+@@ -706,6 +727,9 @@ export class BaseProcess {
     * method.
     */
    wait() {
@@ -1457,7 +1455,7 @@
  export var SubprocessImpl = SubprocessUnix;
 --- a/toolkit/modules/subprocess/subprocess_win.sys.mjs
 +++ b/toolkit/modules/subprocess/subprocess_win.sys.mjs
-@@ -183,6 +183,12 @@ var SubprocessWin = {
+@@ -173,6 +173,12 @@ var SubprocessWin = {
      error.errorCode = SubprocessConstants.ERROR_BAD_EXECUTABLE;
      throw error;
    },
@@ -1595,7 +1593,7 @@
     * has exited.
 --- a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
 +++ b/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
-@@ -858,6 +858,83 @@ add_task(async function test_bad_executa
+@@ -853,6 +853,83 @@ add_task(async function test_bad_executa
    );
  });
  
@@ -1621,7 +1619,7 @@
 +      false,
 +      "A process spawned by us is not externally managed"
 +    );
-+    let { getSubprocessImplForTest } = ChromeUtils.import(
++    let { getSubprocessImplForTest } = ChromeUtils.importESModule(
 +      "resource://gre/modules/Subprocess.sys.mjs"
 +    );
 +    let worker = getSubprocessImplForTest().Process.getWorker();
@@ -1681,7 +1679,7 @@
      "resource://gre/modules/Subprocess.sys.mjs"
 --- a/widget/gtk/WidgetUtilsGtk.h
 +++ b/widget/gtk/WidgetUtilsGtk.h
-@@ -50,6 +50,7 @@ inline bool IsRunningUnderFlatpakOrSnap(
+@@ -53,6 +53,7 @@ inline bool IsRunningUnderFlatpakOrSnap(
  enum class PortalKind {
    FilePicker,
    MimeHandler,
@@ -1691,7 +1689,7 @@
    OpenUri,
 --- a/widget/gtk/WidgetUtilsGtk.cpp
 +++ b/widget/gtk/WidgetUtilsGtk.cpp
-@@ -159,6 +159,8 @@ bool ShouldUsePortal(PortalKind aPortalK
+@@ -208,6 +208,8 @@ bool ShouldUsePortal(PortalKind aPortalK
          // Mime portal breaks default browser handling, see bug 1516290.
          autoBehavior = IsRunningUnderFlatpakOrSnap();
          return StaticPrefs::widget_use_xdg_desktop_portal_mime_handler();
