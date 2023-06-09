@@ -1,6 +1,6 @@
 --- a/modules/libpref/init/StaticPrefList.yaml
 +++ b/modules/libpref/init/StaticPrefList.yaml
-@@ -15570,6 +15570,16 @@
+@@ -15558,6 +15558,16 @@
    value: 2
    mirror: always
  
@@ -974,18 +974,16 @@
  [test_ext_native_messaging_unresponsive.js]
 --- /dev/null
 +++ b/toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js
-@@ -0,0 +1,380 @@
+@@ -0,0 +1,378 @@
 +/* -*- Mode: indent-tabs-mode: nil; js-indent-level: 2 -*- */
 +/* vim: set sts=2 sw=2 et tw=80: */
 +"use strict";
 +
 +const lazy = {};
 +
-+ChromeUtils.defineModuleGetter(
-+  lazy,
-+  "Subprocess",
-+  "resource://gre/modules/Subprocess.sys.mjs"
-+);
++ChromeUtils.defineESModuleGetters(lazy, {
++  Subprocess: "resource://gre/modules/Subprocess.sys.mjs",
++});
 +
 +AddonTestUtils.init(this);
 +AddonTestUtils.overrideCertDB();
@@ -1621,7 +1619,7 @@
 +      false,
 +      "A process spawned by us is not externally managed"
 +    );
-+    let { getSubprocessImplForTest } = ChromeUtils.import(
++    let { getSubprocessImplForTest } = ChromeUtils.importESModule(
 +      "resource://gre/modules/Subprocess.sys.mjs"
 +    );
 +    let worker = getSubprocessImplForTest().Process.getWorker();
