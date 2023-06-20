@@ -211,7 +211,7 @@ parts:
       - jq
       - python3-yaml
     override-pull: |
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
         VERSION=$(craftctl get version | cut -d- -f1)
         BUILD=$(craftctl get version | cut -d- -f2)
         FFINFO=$(curl -s https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD/linux-x86_64/en-US/firefox-$VERSION.json)
@@ -225,7 +225,7 @@ parts:
         git clone "${REPO}" . && git checkout "${SHA1}"
       fi
     override-build: |
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
         cargo build --release
         cp target/release/dump_syms $CRAFT_STAGE/usr/bin/
       fi
@@ -343,15 +343,24 @@ parts:
       cp toolkit/crashreporter/tools/upload_symbols.py $CRAFT_STAGE/debug-symbols/
     override-build: |
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
-      export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       BUILD_DBGSYMS=false
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
-        # Build and publish debug symbols for amd64 only, because Launchpad
-        # builders for other architectures (armhf and arm64) choke (OOM) when
-        # building with debug symbols enabled.
-        # TODO: find a way to work around this infrastructure limitation.
+      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+        # Build and publish debug symbols for amd64 and arm64 only,
+        # because Launchpad builders for armhf choke (OOM) when
+        # building with debug symbols enabled, even with
+        # patches/mozilla-reduce-rust-debuginfo.patch applied,
+        # at least as of 2023-06-25.
         BUILD_DBGSYMS=true
+        # GitHub Actions is limited to 2 CPUs and 7GB RAM, and
+        # too much debug info from Rust will make gkrust linkage fail.
+        # Same goes for arm64 builds on Launchpad.  It seems we can't
+        # detect $GITHUB_WORKSPACE, so we assume presence of the file
+        # "symbols-upload-token" means we are running on GitHub.
+        if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token"] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+          patch -p1 < $CRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
+        fi
       fi
+      export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       if [ $BUILD_DBGSYMS = "true" ]; then
         echo "ac_add_options --enable-debug-symbols" >> $MOZCONFIG
       else
