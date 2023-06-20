@@ -340,7 +340,6 @@ parts:
     override-build: |
       craftctl default
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
-      export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       BUILD_DBGSYMS=false
       if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
         # Build and publish debug symbols for amd64 and arm64 only,
@@ -354,10 +353,11 @@ parts:
         # Same goes for arm64 builds on Launchpad.  It seems we can't
         # detect $GITHUB_WORKSPACE, so we assume presence of the file
         # "symbols-upload-token" means we are running on GitHub.
-        if [ -f "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token"] || [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
-          patch -p1 < $SNAPCRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
+        if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token"] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+          patch -p1 < $CRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
         fi
       fi
+      export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       if [ $BUILD_DBGSYMS = "true" ]; then
         echo "ac_add_options --enable-debug-symbols" >> $MOZCONFIG
       else
