@@ -587,7 +587,7 @@ parts:
       - python3-virtualenv
     after:
       - firefox
-    override-pull: |
+    override-build: |
       export SYMBOLS_ARCHIVE=$(find $CRAFT_STAGE/debug-symbols/ -type f -name "firefox-*.crashreporter-symbols.zip")
       if [ -f "$SYMBOLS_ARCHIVE" ]; then
         if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token" ]; then
