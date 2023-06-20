@@ -491,7 +491,7 @@ parts:
       - python3-virtualenv
     after:
       - firefox
-    override-pull: |
+    override-build: |
       export SYMBOLS_ARCHIVE=$(find $SNAPCRAFT_STAGE/debug-symbols/ -type f -name "firefox-*.crashreporter-symbols.zip")
       if [ -f "$SYMBOLS_ARCHIVE" ]; then
         if [ -f "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token" ]; then
