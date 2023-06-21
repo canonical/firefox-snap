@@ -205,7 +205,7 @@ parts:
     override-pull: |
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         VERSION=$(craftctl get version | cut -d- -f1)
-        BUILD=$(craftctl get version | cut -d- -f2)
+        BUILD=1
         FFINFO=$(curl -s https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD/linux-x86_64/en-US/firefox-$VERSION.json)
         MOZ_SOURCE_REPO=$(echo $FFINFO | jq -r .moz_source_repo)
         MOZ_SOURCE_STAMP=$(echo $FFINFO | jq -r .moz_source_stamp)
@@ -330,7 +330,7 @@ parts:
       - zip
     override-pull: |
       VERSION=$(craftctl get version | cut -d- -f1)
-      BUILD=$(craftctl get version | cut -d- -f2)
+      BUILD=1
       ROOT=https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD
       wget -O - $ROOT/source/firefox-$VERSION.source.tar.xz | tar -x --xz --strip-components=1
       mkdir -p $CRAFT_STAGE/debug-symbols
@@ -481,7 +481,7 @@ parts:
       - wget
     override-pull: |
       VERSION=$(craftctl get version | cut -d- -f1)
-      BUILD=$(craftctl get version | cut -d- -f2)
+      BUILD=1
       SERVER=https://ftp.mozilla.org
       ROOT=$SERVER/pub/firefox/candidates/$VERSION-candidates/build$BUILD
       XPIS=$(wget -O - $ROOT/linux-x86_64/xpi/ | sed -n 's/.* href="\(.*\.xpi\)".*/\1/p')
