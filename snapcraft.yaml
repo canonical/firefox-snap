@@ -547,9 +547,6 @@ parts:
       - usr/lib/*/libtheoradec.so.*
       - usr/lib/*/libtheoraenc.so.*
       - usr/lib/*/libtwolame.so.*
-      - usr/lib/*/libva-drm.so.*
-      - usr/lib/*/libva.so.*
-      - usr/lib/*/libva-x11.so.*
       - usr/lib/*/libvdpau.so.*
       - usr/lib/*/libvpx.so.*
       - usr/lib/*/libwavpack.so.*
