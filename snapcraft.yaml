@@ -286,7 +286,7 @@ parts:
       REPO=https://hg.mozilla.org/mozilla-central
       ROOT=https://ftp.mozilla.org/pub/firefox/nightly/latest-mozilla-central
       REVISION=$(wget -O - $ROOT/firefox-$SNAPCRAFT_PROJECT_VERSION.en-US.linux-x86_64.txt | tail -1 | sed -n "s#^$REPO/rev/\(.*\)\$#\1#p")
-      hg clone $REPO -u $REVISION .
+      hg clone --stream $REPO -u $REVISION .
       rm -rf .hg
       mkdir -p $SNAPCRAFT_STAGE/debug-symbols/
       cp toolkit/crashreporter/tools/upload_symbols.py $SNAPCRAFT_STAGE/debug-symbols/
