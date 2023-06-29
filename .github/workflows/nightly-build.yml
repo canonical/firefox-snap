@@ -33,7 +33,9 @@ jobs:
         with:
           ref: nightly
       - name: Free up some disk space
-        run: sudo rm -rf /usr/share/dotnet /opt/ghc "$AGENT_TOOLSDIRECTORY"
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc "$AGENT_TOOLSDIRECTORY"
+          sudo apt purge $(apt -qq list --installed 'php*' | cut -d/ -f1)
       - name: Extract current version
         id: extract-current-version
         run: ./.github/scripts/extract-current-version.sh
