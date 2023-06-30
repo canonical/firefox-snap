@@ -152,13 +152,13 @@ parts:
       - make
       - wget
     build-environment:
-      - LLVM_RELEASE: "15.0.6"
+      - LLVM_RELEASE: "16.0.4"
     override-pull: |
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
       BINARIES_BASENAME=clang+llvm-$LLVM_RELEASE
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
-        BINARIES_SUFFIX=x86_64-linux-gnu-ubuntu-18.04.tar.xz
+        BINARIES_SUFFIX=x86_64-linux-gnu-ubuntu-22.04.tar.xz
       elif [ $CRAFT_TARGET_ARCH = "armhf" ]; then
         BINARIES_SUFFIX=armv7a-linux-gnueabihf.tar.xz
       elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
@@ -178,7 +178,7 @@ parts:
         cd llvm-$LLVM_RELEASE.src
         mkdir build
         cd build
-        cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DLLVM_INCLUDE_BENCHMARKS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CRAFT_PART_INSTALL/usr ..
+        cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CRAFT_PART_INSTALL/usr ..
         make -j$CRAFT_PARALLEL_BUILD_COUNT install-LLVMgold-stripped
       fi
     override-stage: |
