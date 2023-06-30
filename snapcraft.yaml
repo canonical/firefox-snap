@@ -312,6 +312,7 @@ parts:
       export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
       export WASI_SYSROOT=$SNAPCRAFT_STAGE/wasi-sysroot
       export MOZBUILD_STATE_PATH=$SNAPCRAFT_PART_BUILD/.mozbuild
+      export MOZCONFIG="$SNAPCRAFT_STAGE/mozconfig"
       MACH="env -u LD_LIBRARY_PATH -u PYTHONPATH /usr/bin/python3 ./mach"
       $MACH configure --prefix=$SNAPCRAFT_PART_INSTALL/usr
       $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
