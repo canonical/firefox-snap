@@ -23,14 +23,6 @@ assumes:
   - snapd2.54 # for mount-control
 compression: lzo
 
-package-repositories:
-  - type: apt
-    components: [main]
-    suites: [focal]
-    architectures: [arm64] # for gcc-11's libstdc++6
-    key-id: 60C317803A41BA51845E371A1E9377A2BA9EF27F
-    url: https://ppa.launchpadcontent.net/ubuntu-toolchain-r/test/ubuntu
-
 apps:
   firefox:
     command: firefox.launcher
@@ -159,13 +151,13 @@ parts:
       - make
       - wget
     build-environment:
-      - LLVM_RELEASE: "15.0.6"
+      - LLVM_RELEASE: "16.0.4"
     override-pull: |
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
       BINARIES_BASENAME=clang+llvm-$LLVM_RELEASE
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
-        BINARIES_SUFFIX=x86_64-linux-gnu-ubuntu-18.04.tar.xz
+        BINARIES_SUFFIX=x86_64-linux-gnu-ubuntu-22.04.tar.xz
       elif [ $CRAFT_TARGET_ARCH = "armhf" ]; then
         BINARIES_SUFFIX=armv7a-linux-gnueabihf.tar.xz
       elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
@@ -185,7 +177,7 @@ parts:
         cd llvm-$LLVM_RELEASE.src
         mkdir build
         cd build
-        cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DLLVM_INCLUDE_BENCHMARKS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CRAFT_PART_INSTALL/usr ..
+        cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CRAFT_PART_INSTALL/usr ..
         make -j$CRAFT_PARALLEL_BUILD_COUNT install-LLVMgold-stripped
       fi
     override-stage: |
@@ -319,7 +311,6 @@ parts:
       - libdbus-glib-1-dev
       - libgtk2.0-dev
       - libpython3-dev
-      - libstdc++6
       - libx11-xcb-dev
       - libxt-dev
       - m4
