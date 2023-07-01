@@ -1,0 +1,13 @@
+diff --git a/build/moz.configure/rust.configure b/build/moz.configure/rust.configure
+index e64dc5d5ecc88..a37a605f49263 100644
+--- a/build/moz.configure/rust.configure
++++ b/build/moz.configure/rust.configure
+@@ -653,7 +653,7 @@ def rust_compile_flags(
+         debug_assertions = False
+ 
+     if debug_symbols:
+-        debug_info = "2"
++        debug_info = "1"
+ 
+     opts = []
+ 

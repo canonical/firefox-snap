@@ -13,13 +13,23 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 name: firefox
-version: "102.13.0esr-1"
+version: "115.0esr-2"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
 grade: stable
 base: core20
+assumes:
+  - snapd2.54 # for mount-control
 compression: lzo
+
+package-repositories:
+  - type: apt
+    components: [main]
+    suites: [focal]
+    architectures: [arm64] # for gcc-11's libstdc++6
+    key-id: 60C317803A41BA51845E371A1E9377A2BA9EF27F
+    url: https://ppa.launchpadcontent.net/ubuntu-toolchain-r/test/ubuntu
 
 apps:
   firefox:
@@ -27,6 +37,7 @@ apps:
     desktop: firefox.desktop
     extensions: [gnome-3-38]
     environment:
+      DICPATH: "$SNAP_COMMON/snap-hunspell"
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: "$SNAP/usr/share/pipewire/pipewire.conf"
@@ -45,6 +56,7 @@ apps:
       - gsettings
       - hardware-observe
       - home
+      - host-hunspell
       - joystick
       - network
       - network-observe
@@ -71,6 +83,7 @@ apps:
       - gsettings
       - hardware-observe
       - home
+      - host-hunspell
       - joystick
       - network
       - network-observe
@@ -92,9 +105,16 @@ plugs:
   dot-mozilla-firefox:
     interface: personal-files
     read: [$HOME/.mozilla/firefox]
-  etc-firefox-policies:
+  etc-firefox:
     interface: system-files
-    read: [/etc/firefox/policies]
+    read: [/etc/firefox]
+  host-hunspell:
+    interface: mount-control
+    mount:
+    - what: /usr/share/hunspell
+      where: $SNAP_COMMON/host-hunspell
+      persistent: true
+      options: [ro, bind, noatime, noexec]
 
 layout:
   /usr/share/libdrm:
@@ -107,7 +127,7 @@ parts:
       - wget
     override-pull: |
       # Do not use rustup to work around https://forum.snapcraft.io/t/armhf-builds-on-launchpad-timing-out/31008
-      REQUIRED_RUST_VERSION=1.60.0
+      REQUIRED_RUST_VERSION=1.66.0
       ROOT=https://static.rust-lang.org/dist/rust-$REQUIRED_RUST_VERSION
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         BINARIES_SUFFIX=x86_64-unknown-linux-gnu
@@ -135,8 +155,9 @@ parts:
       - libtinfo5
       - make
       - wget
+    build-environment:
+      - LLVM_RELEASE: "15.0.6"
     override-pull: |
-      LLVM_RELEASE=14.0.0
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
       BINARIES_BASENAME=clang+llvm-$LLVM_RELEASE
@@ -148,13 +169,16 @@ parts:
         BINARIES_SUFFIX=aarch64-linux-gnu.tar.xz
       fi
       wget -O - $ROOT/$BINARIES_BASENAME-$BINARIES_SUFFIX | tar -x --xz
+      # And cmake-$LLVM_RELEASE.src needed on LLVM >= 15.0.0
+      wget -O - $ROOT/cmake-$LLVM_RELEASE.src.tar.xz | tar -x --xz
+      mv cmake-$LLVM_RELEASE.src cmake
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         # And the sources to build LLVMgold.so, which isn't distributed in a binary form
         wget -O - $ROOT/llvm-$LLVM_RELEASE.src.tar.xz | tar -x --xz
       fi
     override-build: |
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        cd llvm-*.src
+        cd llvm-$LLVM_RELEASE.src
         mkdir build
         cd build
         cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DLLVM_INCLUDE_BENCHMARKS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$SNAPCRAFT_PART_INSTALL/usr ..
@@ -163,7 +187,7 @@ parts:
     override-stage: |
       snapcraftctl stage
       mkdir -p usr
-      cp -R $SNAPCRAFT_PART_SRC/clang+llvm-*/* usr/
+      cp -R $SNAPCRAFT_PART_SRC/clang+llvm-$LLVM_RELEASE-*/* usr/
     override-prime: ''
 
   dump-syms:
@@ -176,7 +200,7 @@ parts:
       - jq
       - python3-yaml
     override-pull: |
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ] || [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
         VERSION=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f1)
         BUILD=$(echo $SNAPCRAFT_PROJECT_VERSION | cut -d- -f2)
         FFINFO=$(curl -s https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD/linux-x86_64/en-US/firefox-$VERSION.json)
@@ -189,37 +213,58 @@ parts:
         git clone "${REPO}" . && git checkout "${SHA1}"
       fi
     override-build: |
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ] || [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
         cargo build --release
         cp target/release/dump_syms $SNAPCRAFT_STAGE/usr/bin/
       fi
 
+  #This is a temporary workaround to including the hunspell content snap,
+  #which would cause breakage in the Ubuntu desktop image build because of
+  #the Ubuntu policy. See https://bugzilla.mozilla.org/show_bug.cgi?id=1792006.
+  #
+  #The definition of this part is essentially a copy of the corresponding part
+  #in hunspell-dictionaries-1-7-2004 by Buo-ren, Lin.
+  hunspell:
+    plugin: nil
+    override-build: |
+      set -eu
+      apt download $(apt-cache search '^hunspell-.*$' |
+        awk '!/myspell|dbgsym|tools|transitional|dependency/{printf "%s ", $1}')
+      find . -name "*.deb" -exec dpkg-deb -x {} "$SNAPCRAFT_PART_INSTALL" \;
+    filesets:
+      hunspell-dictionaries: [usr/share/hunspell]
+    stage:
+      - $hunspell-dictionaries
+    prime:
+      - $hunspell-dictionaries
+
+  # We use the amd64 binary for all architectures since the used files are said
+  # to be arch-independent.
   wasi-sdk:
     plugin: nil
     after:
       - clang
     build-packages:
       - wget
+    build-environment:
+      - WASI_BRANCH: "15"
+      - WASI_RELEASE: "15.0"
     override-pull: |
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        WASI_RELEASE=14.0
-        ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-14
-        wget $ROOT/wasi-sysroot-$WASI_RELEASE.tar.gz
-        wget $ROOT/libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
-      fi
+      ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$WASI_BRANCH
+      wget $ROOT/wasi-sysroot-$WASI_RELEASE.tar.gz
+      wget $ROOT/libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
     override-build: |
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        tar -C $SNAPCRAFT_STAGE -xf wasi-sysroot-*.tar.gz
-        tar -C $SNAPCRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-*.tar.gz
-      fi
+      tar -C $SNAPCRAFT_STAGE -xf wasi-sysroot-$WASI_RELEASE.tar.gz
+      tar -C $SNAPCRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
     override-prime: ''
 
   nodejs:
     plugin: nil
     build-packages:
       - wget
+    build-environment:
+      - NODEJS_RELEASE: "v16.18.1"
     override-pull: |
-      NODEJS_RELEASE=v16.15.1
       ROOT=https://nodejs.org/dist/$NODEJS_RELEASE/node-$NODEJS_RELEASE-linux-
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         SUFFIX=x64.tar.xz
@@ -230,7 +275,13 @@ parts:
       fi
       wget -O - $ROOT$SUFFIX | tar -x --xz
     override-build: |
-      cp -R node-*/ $SNAPCRAFT_PART_INSTALL/usr/
+      cp -R node-$NODEJS_RELEASE-linux-*/ $SNAPCRAFT_PART_INSTALL/usr/
+    override-prime: ''
+
+  mozconfig:
+    plugin: nil
+    override-stage: |
+      cp $SNAPCRAFT_PROJECT_DIR/mozconfig.in $SNAPCRAFT_STAGE/mozconfig
     override-prime: ''
 
   # Launchpad builders have a timeout for how long they are allowed to access
@@ -249,6 +300,8 @@ parts:
       - dump-syms
       - ffmpeg
       - firefox-langpacks
+      - hunspell
+      - mozconfig
       - nodejs
       - pipewire
       - rust
@@ -262,6 +315,7 @@ parts:
       - libdbus-glib-1-dev
       - libgtk2.0-dev
       - libpython3-dev
+      - libstdc++6
       - libx11-xcb-dev
       - libxt-dev
       - m4
@@ -281,14 +335,23 @@ parts:
       cp toolkit/crashreporter/tools/upload_symbols.py $SNAPCRAFT_STAGE/debug-symbols/
     override-build: |
       QUILT_PATCHES=$SNAPCRAFT_PROJECT_DIR/patches quilt push -a
-      export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
+      export MOZCONFIG="$SNAPCRAFT_STAGE/mozconfig"
       BUILD_DBGSYMS=false
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        # Build and publish debug symbols for amd64 only, because Launchpad
-        # builders for other architectures (armhf and arm64) choke (OOM) when
-        # building with debug symbols enabled.
-        # TODO: find a way to work around this infrastructure limitation.
+      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ] || [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
+        # Build and publish debug symbols for amd64 and arm64 only,
+        # because Launchpad builders for armhf choke (OOM) when
+        # building with debug symbols enabled, even with
+        # patches/mozilla-reduce-rust-debuginfo.patch applied,
+        # at least as of 2023-06-25.
         BUILD_DBGSYMS=true
+        # GitHub Actions is limited to 2 CPUs and 7GB RAM, and
+        # too much debug info from Rust will make gkrust linkage fail.
+        # Same goes for arm64 builds on Launchpad.  It seems we can't
+        # detect $GITHUB_WORKSPACE, so we assume presence of the file
+        # "symbols-upload-token" means we are running on GitHub.
+        if [ -f "$SNAPCRAFT_PROJECT_DIR/symbols-upload-token"] || [ $SNAPCRAFT_TARGET_ARCH = "arm64" ]; then
+          patch -p1 < $SNAPCRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
+        fi
       fi
       if [ $BUILD_DBGSYMS = "true" ]; then
         echo "ac_add_options --enable-debug-symbols" >> $MOZCONFIG
@@ -308,12 +371,7 @@ parts:
       fi
       GNOME_SDK_SNAP=/snap/gnome-3-38-2004-sdk/current
       export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
-      if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
-        export WASI_SYSROOT=$SNAPCRAFT_STAGE/wasi-sysroot
-        export WASM_SANDBOXED_LIBRARIES=graphite,ogg,hunspell
-      else
-        echo "ac_add_options --without-wasm-sandboxed-libraries" >> $MOZCONFIG
-      fi
+      export WASI_SYSROOT=$SNAPCRAFT_STAGE/wasi-sysroot
       export MOZBUILD_STATE_PATH=$SNAPCRAFT_PART_BUILD/.mozbuild
       unset PYTHONPATH
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
@@ -324,6 +382,23 @@ parts:
       fi
       MACH="/usr/bin/python3 ./mach"
       $MACH configure --prefix=$SNAPCRAFT_PART_INSTALL/usr
+      $MACH uniffi generate # workaround for https://bugzilla.mozilla.org/1797714
+      # Unset SNAP_INSTANCE_NAME because when snapcraft runs as a snap it is set
+      # (and its value is "snapcraft"), and this interferes with firefox's
+      # detection of whether it's running sandboxed (see
+      # https://searchfox.org/mozilla-central/search?q=IsRunningUnderSnap()).
+      # That codes is compiled in the xpcshell binary that's used to generate
+      # files at build time, and the environment it runs in prevents it from
+      # locating services it needs, causing a crash (see
+      # https://searchfox.org/mozilla-central/rev/aa329cf7506ddd966542e642ec00223fd7461599/xpcom/io/SpecialSystemDirectory.cpp#196).
+      # This is a temporary workaround to get builds going again, we really need
+      # to get to the bottom of this and understand why xpcshell cannot find the
+      # appinfo service when run in the build environment.
+      # Unsetting SNAP_INSTANCE_NAME has the undesirable side-effect that when
+      # generating a profile for PGO-enabled builds, a potentially different
+      # code path will be exercised (not confined as a snap), so that's not a
+      # good solution.
+      unset SNAP_INSTANCE_NAME
       if [ $SNAPCRAFT_TARGET_ARCH = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
         xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build -j$SNAPCRAFT_PARALLEL_BUILD_COUNT
@@ -393,7 +468,8 @@ parts:
       mkdir -p $INSTALLDIR
       for XPI in $(ls $SNAPCRAFT_PART_SRC/*.xpi); do
         LANGCODE=$(basename $XPI .xpi)
-        cp $XPI $INSTALLDIR/langpack-$LANGCODE@firefox.mozilla.org.xpi
+        mkdir $INSTALLDIR/locale-$LANGCODE
+        cp $XPI $INSTALLDIR/locale-$LANGCODE/langpack-$LANGCODE@firefox.mozilla.org.xpi
       done
 
   launcher:
@@ -469,12 +545,14 @@ parts:
 
   apikeys:
     plugin: nil
+    after:
+      - mozconfig
     build-packages:
       - coreutils
       - gpg
       - jq
     override-build: |
-      export MOZCONFIG="$SNAPCRAFT_PROJECT_DIR/mozconfig"
+      MOZCONFIG="$SNAPCRAFT_STAGE/mozconfig"
       gpg -d --batch --passphrase "$(base64 -d $SNAPCRAFT_PROJECT_DIR/.passphrase)" -o apikeys $SNAPCRAFT_PROJECT_DIR/.apikeys
       cat apikeys | jq .MOZ_GOOGLE_LOCATION_SERVICE_API_KEY | tr -d '"' > $SNAPCRAFT_PART_INSTALL/gls-gapi.data
       echo "ac_add_options --with-google-location-service-api-keyfile=$SNAPCRAFT_STAGE/gls-gapi.data" >> $MOZCONFIG
