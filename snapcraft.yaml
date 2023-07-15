@@ -396,22 +396,6 @@ parts:
       MACH="/usr/bin/python3 ./mach"
       $MACH configure --prefix=$CRAFT_PART_INSTALL/usr
       $MACH uniffi generate # workaround for https://bugzilla.mozilla.org/1797714
-      # Unset SNAP_INSTANCE_NAME because when snapcraft runs as a snap it is set
-      # (and its value is "snapcraft"), and this interferes with firefox's
-      # detection of whether it's running sandboxed (see
-      # https://searchfox.org/mozilla-central/search?q=IsRunningUnderSnap()).
-      # That codes is compiled in the xpcshell binary that's used to generate
-      # files at build time, and the environment it runs in prevents it from
-      # locating services it needs, causing a crash (see
-      # https://searchfox.org/mozilla-central/rev/aa329cf7506ddd966542e642ec00223fd7461599/xpcom/io/SpecialSystemDirectory.cpp#196).
-      # This is a temporary workaround to get builds going again, we really need
-      # to get to the bottom of this and understand why xpcshell cannot find the
-      # appinfo service when run in the build environment.
-      # Unsetting SNAP_INSTANCE_NAME has the undesirable side-effect that when
-      # generating a profile for PGO-enabled builds, a potentially different
-      # code path will be exercised (not confined as a snap), so that's not a
-      # good solution.
-      unset SNAP_INSTANCE_NAME
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
         xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build -j$CRAFT_PARALLEL_BUILD_COUNT
