@@ -1,0 +1,79 @@
+# Copyright (C) 2021 Canonical Ltd.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License version 3, as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+name: Nightly snap build
+
+on:
+  schedule:
+    # Run every 12 hours (Nightly builds start at 10:00 and 22:00 UTC,
+    # and usually builds are available one hour or two later). Give some room
+    # and assume new builds will be available 3 hours after they start.
+    - cron: '0 1,13 * * *'
+  # Allow running manually, for testing purposes.
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}
+
+jobs:
+  nightly-snap:
+    runs-on: [ self-hosted, xlarge ]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: nightly
+      - name: Free up some disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc "$AGENT_TOOLSDIRECTORY"
+          sudo apt purge $(apt -qq list --installed 'php*' | cut -d/ -f1)
+          sudo apt purge $(apt -qq list --installed 'postgresql*' | cut -d/ -f1)
+          sudo apt purge azure-cli google-cloud-sdk libpq-dev mono-complete mongodb-org mysql-server mysql-client mssql-tools powershell rpm ruby-full
+          sudo apt autoremove -y
+          sudo apt autoclean -y
+          sudo docker rmi $(docker image ls -aq) || true
+          sudo rm -rf /opt/microsoft /opt/google /opt/pipx /opt/hhvm /imagegeneration
+      - name: Extract current version
+        id: extract-current-version
+        run: ./.github/scripts/extract-current-version.sh
+      - name: Set Mozilla debug symbols token
+        id: moz-dbgsymup-token
+        env:
+          MOZ_DBGSYMUP_TOKEN: ${{ secrets.MOZ_DBGSYMUP_TOKEN }}
+        run: ./.github/scripts/moz-dbgsymup-token.sh
+      - uses: snapcore/action-build@v1
+        id: build-new-snap-nightly
+      - uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPSTORE_LOGIN }}
+        with:
+          snap: ${{ steps.build-new-snap-nightly.outputs.snap }}
+          release: edge
+      - name: Install the marionette driver
+        run: |
+          sudo apt update && sudo apt install python3-pip
+          pip3 install marionette_driver
+      - name: Create missing user runtime directory
+        run: |
+          sudo mkdir -p /run/user/$UID
+          sudo chown $USER /run/user/$UID
+      - name: Install the snap from the store and run some basic tests
+        run: |
+          sudo snap install firefox --edge
+          channel=$(snap info firefox | grep tracking: | cut -d: -f2 | xargs)
+          [ $channel = "latest/edge" ]
+          installed=$(snap info firefox | grep installed: | cut -d: -f2 | xargs | cut -d' ' -f1)
+          [ $installed = ${{ env.current_version }} ]
+          runtimeversion=$(snap run firefox --version)
+          snap run firefox --headless --marionette &
+          pid=$!
+          ./.github/scripts/firefox-basic-tests.py $pid "$runtimeversion"

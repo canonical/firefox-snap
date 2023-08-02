@@ -1,0 +1,125 @@
+# Copyright (C) 2021 Canonical Ltd.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License version 3, as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+name: New version check
+
+on:
+  schedule:
+    # run every hour (at minute 57)
+    - cron: '57 * * * *'
+  workflow_dispatch:
+
+jobs:
+  check-new-stable:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: stable
+          persist-credentials: false
+      - name: Extract current version
+        run: ./.github/scripts/extract-current-version.sh
+      - name: Install python deps
+        run: sudo apt update && sudo apt install python3-lxml python3-packaging
+      - name: Fetch new version
+        run: |
+          version=$(./.github/scripts/check-new-version.py release ${{ env.current_version }})
+          echo "new_version=$version" >> $GITHUB_ENV
+      - name: Update snapcraft.yaml with the new version
+        if: env.new_version
+        run: |
+          if [ $(echo ${{ env.current_version }} | cut -d. -f1) = $(echo ${{ env.new_version }} | cut -d. -f1) ]; then
+            sed -i "s/^version: \"\(.*\)\"$/version: \"${{ env.new_version }}\"/" snapcraft.yaml
+            git add snapcraft.yaml
+            git config user.name "GitHub Actions"
+            git config user.email "actions@github.com"
+            git commit -m "Bump version to the latest release candidate (${{ env.new_version }})."
+            git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git stable
+          else
+            echo "New major version (${{ env.new_version }}), please merge the beta branch into the stable one."
+          fi
+  check-new-esr:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: esr
+          persist-credentials: false
+      - name: Extract current version
+        run: ./.github/scripts/extract-current-version.sh
+      - name: Install python deps
+        run: sudo apt update && sudo apt install python3-lxml python3-packaging
+      - name: Fetch new version
+        run: |
+          version=$(./.github/scripts/check-new-version.py esr ${{ env.current_version }})
+          echo "new_version=$version" >> $GITHUB_ENV
+      - name: Update snapcraft.yaml with the new version
+        if: env.new_version
+        run: |
+          if [ $(echo ${{ env.current_version }} | cut -d. -f1) = $(echo ${{ env.new_version }} | cut -d. -f1) ]; then
+            sed -i "s/^version: \"\(.*\)\"$/version: \"${{ env.new_version }}\"/" snapcraft.yaml
+            git add snapcraft.yaml
+            git config user.name "GitHub Actions"
+            git config user.email "actions@github.com"
+            git commit -m "Bump version to the latest ESR release (${{ env.new_version }})."
+            git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git esr
+          else
+            echo "New major version (${{ env.new_version }}), please proceed to a manual update."
+          fi
+  check-new-beta:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: beta
+          persist-credentials: false
+      - name: Extract current version
+        run: ./.github/scripts/extract-current-version.sh
+      - name: Install python deps
+        run: sudo apt update && sudo apt install python3-lxml python3-packaging
+      - name: Fetch new version
+        run: |
+          version=$(./.github/scripts/check-new-version.py beta ${{ env.current_version }})
+          echo "new_version=$version" >> $GITHUB_ENV
+      - name: Update snapcraft.yaml with the new version
+        if: env.new_version
+        run: |
+          sed -i "s/^version: \"\(.*\)\"$/version: \"${{ env.new_version }}\"/" snapcraft.yaml
+          git add snapcraft.yaml
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git commit -m "Bump version to the latest beta (${{ env.new_version }})."
+          git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git beta
+  check-new-nightly:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: nightly
+          persist-credentials: false
+      - name: Extract current version
+        run: ./.github/scripts/extract-current-version.sh
+      - name: Install deps
+        run: sudo apt update && sudo apt install jq
+      - name: Fetch new version
+        run: ./.github/scripts/check-new-nightly.sh ${{ env.current_version }}
+      - name: Update snapcraft.yaml with the new version
+        if: env.new_version
+        run: |
+          sed -i "s/^version: \"\(.*\)\"$/version: \"${{ env.new_version }}\"/" snapcraft.yaml
+          git add snapcraft.yaml
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git commit -m "Bump version to the latest nightly (${{ env.new_version }})."
+          git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git nightly
