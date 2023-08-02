@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          ref: nightly
+          ref: nightly-tmp-self-hosted
       - name: Free up some disk space
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc "$AGENT_TOOLSDIRECTORY"
