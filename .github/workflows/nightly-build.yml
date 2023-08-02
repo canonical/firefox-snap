@@ -32,16 +32,6 @@ jobs:
       - uses: actions/checkout@v3
         with:
           ref: nightly-tmp-self-hosted
-      - name: Free up some disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc "$AGENT_TOOLSDIRECTORY"
-          sudo apt purge $(apt -qq list --installed 'php*' | cut -d/ -f1)
-          sudo apt purge $(apt -qq list --installed 'postgresql*' | cut -d/ -f1)
-          sudo apt purge azure-cli google-cloud-sdk libpq-dev mono-complete mongodb-org mysql-server mysql-client mssql-tools powershell rpm ruby-full
-          sudo apt autoremove -y
-          sudo apt autoclean -y
-          sudo docker rmi $(docker image ls -aq) || true
-          sudo rm -rf /opt/microsoft /opt/google /opt/pipx /opt/hhvm /imagegeneration
       - name: Extract current version
         id: extract-current-version
         run: ./.github/scripts/extract-current-version.sh
