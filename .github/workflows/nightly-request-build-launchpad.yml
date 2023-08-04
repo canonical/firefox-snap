@@ -37,6 +37,6 @@ jobs:
         # https://help.launchpad.net/API/SigningRequests
         run: |
           url="https://api.launchpad.net/devel/~mozilla-snaps/firefox/+snap/firefox-snap-nightly"
-          archive="https://api.launchpad.net/devel/ubuntu/+archive/primary"
+          archive="https://api.launchpad.net/devel/ubuntu/%2Barchive/primary"
           pocket="Updates"
           curl -i -X POST -H "Authorization: OAuth realm=\"https://api.launchpad.net/\",oauth_consumer_key=\"firefox-snap\",oauth_token=\"${{ secrets.LP_OAUTH_TOKEN }}\",oauth_signature_method=\"PLAINTEXT\",oauth_signature=\"%26${{ secrets.LP_OAUTH_TOKEN_SECRET }}\",oauth_timestamp=\"$(date +%s)\",oauth_nonce=\"$(openssl rand -base64 12)\",oauth_version=\"1.0\"" -d "ws.op=requestBuilds" -d "archive=$archive" -d "pocket=$pocket" "$url"
