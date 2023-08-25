@@ -30,6 +30,8 @@ apps:
     desktop: firefox.desktop
     extensions: [gnome]
     environment:
+      PATH: $SNAP/ffmpeg-platform/usr/bin:$PATH
+      LD_LIBRARY_PATH: $SNAP/ffmpeg-platform/usr/lib/$CRAFT_ARCH_TRIPLET:$LD_LIBRARY_PATH
       DICPATH: "$SNAP_COMMON/snap-hunspell"
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
@@ -93,6 +95,10 @@ apps:
       - mpris
 
 plugs:
+  ffmpeg-2204:
+    interface: content
+    target: ffmpeg-platform
+    default-provider: ffmpeg-2204
   browser-sandbox:
     interface: browser-support
     allow-sandbox: true
