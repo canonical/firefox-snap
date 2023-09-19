@@ -21,6 +21,55 @@ grade: stable
 base: core22
 compression: lzo
 
+# Snap cross-compilation has some limitations, including that arm64 arch is not
+# added to dpkg, and archive.ubuntu.com repo defined in /etc/apt/sources.list
+# is not limiting to amd64:
+#  - arm64 packages cannot be installed by default
+#  - 'apt update' will return some non successfull because it tries to read
+#    arm64 packages from the main archive.ubuntu.com while those are on
+#    ports.ubuntu.com
+#
+# Workaround for now:
+#  - snap run snapcraft clean
+#  - snap run snapcraft
+#
+# this will start the instance and fail on the above
+# run the following steps ; once it is done, then 'snap run snapcraft' should
+# complete normally:
+#
+#  #!/bin/sh
+#
+#  INSTANCE=$(lxc list --project snapcraft --columns "n" --format "compact" | grep firefox-on-amd64-for-arm64)
+#  NB=$(echo ${INSTANCE} | wc -l)
+#  if [ "${NB}" -ne "1" ]; then
+#    echo "Clean instances please."
+#    exit 1;
+#  fi;
+#
+#  lxc start --project snapcraft ${INSTANCE}
+#  lxc exec --project snapcraft ${INSTANCE} -- dpkg --add-architecture arm64
+#  lxc exec --project snapcraft ${INSTANCE} -- sed -ri "s/^deb /deb [arch=amd64] /g" /etc/apt/sources.list
+#  lxc exec --project snapcraft ${INSTANCE} -- apt update
+#  lxc exec --project snapcraft ${INSTANCE} -- apt --fix-broken install
+#  lxc exec --project snapcraft ${INSTANCE} -- apt upgrade -y
+#  lxc stop --project snapcraft ${INSTANCE}
+
+architectures:
+  - build-on: [amd64]
+    build-for: [amd64]
+  - build-on: [amd64, armhf]
+    build-for: [armhf]
+  - build-on: [amd64, arm64]
+    build-for: [arm64]
+
+package-repositories:
+  - type: apt
+    architectures: [armhf, arm64]
+    components: [main, multiverse, universe]
+    suites: [jammy, jammy-updates, jammy-security, jammy-backports]
+    key-id: F6ECB3762474EDA9D21B7022871920D1991BC93C
+    url: http://ports.ubuntu.com/
+
 assumes:
   - snapd2.54 # for mount-control
 
@@ -36,8 +85,8 @@ apps:
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: "$SNAP/usr/share/pipewire/pipewire.conf"
-      PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/pipewire-0.3"
-      SPA_PLUGIN_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/spa-0.2"
+      PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/pipewire-0.3"
+      SPA_PLUGIN_DIR: "$SNAP/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/spa-0.2"
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
       MOZ_DBUS_APP_NAME: "firefox_nightly"
     slots:
@@ -135,6 +184,13 @@ parts:
     override-build: |
       REQUIRED_RUST_VERSION=1.76.0
       sh rustup.sh -q -y --default-toolchain $REQUIRED_RUST_VERSION
+      if [ $CRAFT_ARCH_BUILD_ON != $CRAFT_ARCH_BUILD_FOR ]; then
+        if [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
+          $HOME/.cargo/bin/rustup target add aarch64-unknown-linux-gnu
+        elif [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
+          $HOME/.cargo/bin/rustup target add thumbv7neon-unknown-linux-gnueabihf
+        fi
+      fi
     override-prime: ''
 
   cbindgen:
@@ -160,24 +216,24 @@ parts:
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
       BINARIES_BASENAME=clang+llvm-$LLVM_RELEASE
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
         BINARIES_SUFFIX=x86_64-linux-gnu-ubuntu-22.04.tar.xz
-      elif [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+      elif [ $CRAFT_ARCH_BUILD_ON = "armhf" ]; then
         BINARIES_SUFFIX=armv7a-linux-gnueabihf.tar.xz
-      elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      elif [ $CRAFT_ARCH_BUILD_ON = "arm64" ]; then
         BINARIES_SUFFIX=aarch64-linux-gnu.tar.xz
       fi
       wget -O - $ROOT/$BINARIES_BASENAME-$BINARIES_SUFFIX | tar -x --xz
       # And cmake-$LLVM_RELEASE.src needed on LLVM >= 15.0.0
       wget -O - $ROOT/cmake-$LLVM_RELEASE.src.tar.xz | tar -x --xz
       mv cmake-$LLVM_RELEASE.src cmake
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
         # And the sources to build LLVMgold.so, which isn't distributed in a binary form
         wget -O - $ROOT/llvm-$LLVM_RELEASE.src.tar.xz | tar -x --xz
       fi
     override-build: |
       craftctl default
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
         cd llvm-$LLVM_RELEASE.src
         mkdir build
         cd build
@@ -200,7 +256,7 @@ parts:
       - jq
       - python3-yaml
     override-pull: |
-      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
         ROOT=https://ftp.mozilla.org/pub/firefox/nightly/latest-mozilla-central
         REVISION=$(wget -O - $ROOT/firefox-$(craftctl get version).en-US.linux-x86_64.txt | tail -1 | sed -n "s#^.*\/rev/\(.*\)\$#\1#p")
         FETCHES=https://hg.mozilla.org/mozilla-central/raw-file/${REVISION}/taskcluster/kinds/fetch/toolchains.yml
@@ -212,7 +268,7 @@ parts:
       fi
     override-build: |
       craftctl default
-      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
         $HOME/.cargo/bin/cargo build --release
         mkdir -p $CRAFT_STAGE/usr/bin/
         cp target/release/dump_syms $CRAFT_STAGE/usr/bin/
@@ -266,11 +322,11 @@ parts:
       - NODEJS_RELEASE: "v18.12.1"
     override-pull: |
       ROOT=https://nodejs.org/dist/$NODEJS_RELEASE/node-$NODEJS_RELEASE-linux-
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
         SUFFIX=x64.tar.xz
-      elif [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+      elif [ $CRAFT_ARCH_BUILD_ON = "armhf" ]; then
         SUFFIX=armv7l.tar.xz
-      elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      elif [ $CRAFT_ARCH_BUILD_ON = "arm64" ]; then
         SUFFIX=arm64.tar.xz
       fi
       wget -O - $ROOT$SUFFIX | tar -x --xz
@@ -310,6 +366,23 @@ parts:
       - rust
       - wasi-sdk
     build-packages:
+      - on amd64:
+        - to arm64:
+          - libstdc++-11-dev-arm64-cross
+          - libpulse-dev:arm64
+          - libasound2-dev:arm64
+          - libgtk-3-dev:arm64
+          - libxkbcommon-dev:arm64
+          - libpango1.0-dev:arm64
+          - libx11-xcb-dev:arm64
+        - to armhf:
+          - libstdc++-11-dev-armhf-cross
+          - libpulse-dev:armhf
+          - libasound2-dev:armhf
+          - libgtk-3-dev:armhf
+          - libxkbcommon-dev:armhf
+          - libpango1.0-dev:armhf
+          - libx11-xcb-dev:armhf
       - cmake
       - coreutils
       - file
@@ -343,7 +416,8 @@ parts:
       # easily rerun.
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
       BUILD_DBGSYMS=false
-      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
+        # TODO: Update above comment?
         # Build and publish debug symbols for amd64 and arm64 only,
         # because Launchpad builders for armhf choke (OOM) when
         # building with debug symbols enabled, even with
@@ -356,10 +430,12 @@ parts:
       # Same goes for arm64 builds on Launchpad.  It seems we can't
       # detect $GITHUB_WORKSPACE, so we assume presence of the file
       # "symbols-upload-token" means we are running on GitHub.
-      if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token"] || [ $CRAFT_TARGET_ARCH = "arm64" ] || [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+      # TODO: GitHub Actions is dead so far
+      ## if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token" ] || [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
+      ##   patch -p1 < $CRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
+      ## fi
+      if [ $CRAFT_ARCH_BUILD_ON = "armhf" || $CRAFT_ARCH_BUILD_ON = "arm64" ]; then
         patch -p1 < $CRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
-      fi
-      if [ $CRAFT_TARGET_ARCH = "armhf" ]; then
         patch -p1 < $CRAFT_PROJECT_DIR/patches/armhf-thin-lto.patch
       fi
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
@@ -370,51 +446,70 @@ parts:
       else
         echo "ac_add_options --disable-debug-symbols" >> $MOZCONFIG
       fi
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # Enable LTO and PGO (https://firefox-source-docs.mozilla.org/build/buildsystem/pgo.html) only on amd64 for now.
         # Linking with gold fails on armhf (error: undefined reference to '__aeabi_uldivmod') and would need to be
         # investigated further, and running PGO on arm64 takes forever (> 4 days in the Launchpad build environment!).
         echo "ac_add_options --enable-linker=lld" >> $MOZCONFIG
         echo "ac_add_options MOZ_PGO=1" >> $MOZCONFIG
       fi
-      if [ $CRAFT_TARGET_ARCH != "armhf" ]; then
+      # TODO: Revisit?
+      if [ $CRAFT_ARCH_BUILD_ON != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
       fi
       echo "ac_add_options --prefix=$CRAFT_PART_INSTALL/usr" >> $MOZCONFIG
+      if [ $CRAFT_ARCH_BUILD_ON != $CRAFT_ARCH_BUILD_FOR ]; then
+        if [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
+          echo "ac_add_options --target=aarch64-linux-gnu" >> $MOZCONFIG
+          echo "ac_add_options --enable-linker=lld" >> $MOZCONFIG
+        fi
+        if [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
+          echo "ac_add_options --target=arm-linux-gnueabihf" >> $MOZCONFIG
+          echo "ac_add_options --with-thumb=yes" >> $MOZCONFIG
+          echo "ac_add_options --with-arch=armv7" >> $MOZCONFIG
+          echo "ac_add_options --with-fpu=neon" >> $MOZCONFIG
+          echo "ac_add_options --enable-linker=lld" >> $MOZCONFIG
+        fi
+      fi
     override-build: |
       craftctl default
       export PATH=$HOME/.cargo/bin:$PATH
-      GNOME_SDK_SNAP=/snap/gnome-42-2204-sdk/current
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      GNOME_SDK_SNAP_BASE=gnome-42-2204-sdk
+      GNOME_SDK_SNAP_REVISION=current
+      GNOME_SDK_SNAP=/snap/$GNOME_SDK_SNAP_BASE/$GNOME_SDK_SNAP_REVISION
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # "clang -dumpmachine" returns "x86_64-unknown-linux-gnu" on
         # amd64 (at least the binaries they distribute), but what we
         # really need is "x86_64-pc-linux-gnu"; so let's hard-code it.
         export TARGET_TRIPLET="x86_64-pc-linux-gnu"
-      else
-        export TARGET_TRIPLET=$(clang -dumpmachine)
+      elif [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
+        export TARGET_TRIPLET="aarch64-unknown-linux-gnu"
+      elif [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
+        export TARGET_TRIPLET="arm-linux-gnueabihf"
       fi
-      export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
+      export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR} -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib -Wl,-rpath-link=/usr/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/lib/"
       export LDFLAGS="-Wl,-rpath-link=$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/dist/bin${LDFLAGS:+ $LDFLAGS}"
       export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      export PKG_CONFIG_PATH=$GNOME_SDK_SNAP/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/pkgconfig/:$GNOME_SDK_SNAP/usr/lib/pkgconfig/:$GNOME_SDK_SNAP/usr/share/pkgconfig/:/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/pkgconfig/
       export WASI_SYSROOT=$CRAFT_STAGE/wasi-sysroot
       export MOZBUILD_STATE_PATH=$CRAFT_PART_BUILD/.mozbuild
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       BUILD_DBGSYMS=false
-      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
         # See override-pull above for why we only build debug symbols
         # on these arches.
         BUILD_DBGSYMS=true
       fi
       unset PYTHONPATH
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # Needed for PGO-enabled builds that execute the built binaries. This should mirror the link paths in $LDFLAGS.
-        export LD_LIBRARY_PATH="$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET:$GNOME_SDK_SNAP/usr/lib"
+        export LD_LIBRARY_PATH="$GNOME_SDK_SNAP/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}:$GNOME_SDK_SNAP/usr/lib"
         # Ensure the instrumented binary is run against the right version of libssl3.so and libnss3.so
         # (locally-built versions are more recent than the ones in the gnome platform snap)
         export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/instrumented/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       fi
       MACH="/usr/bin/python3 ./mach"
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
         xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build --verbose -j$CRAFT_PARALLEL_BUILD_COUNT
       else
@@ -445,49 +540,90 @@ parts:
       mkdir $CRAFT_PART_INSTALL/{gnome-platform,data-dir,data-dir/{icons,sounds,themes}}
       craftctl default
     stage-packages:
-      - libasound2
-      - libcurl4
-      - libpci3
-      - libpipewire-0.3-0
-      - libpipewire-0.3-modules
-      - libspa-0.2-modules
-      - libspeechd2
-      - libvulkan1
-      - libxt6
-      - mesa-vulkan-drivers
-      - pipewire-bin
-      - pipewire-pulse
+      - on amd64:
+        - to arm64:
+          - libasound2:arm64
+          - libcurl4:arm64
+          - libpci3:arm64
+          - libpipewire-0.3-0:arm64
+          - libpipewire-0.3-modules:arm64
+          - libspa-0.2-modules:arm64
+          - libspeechd2:arm64
+          - libvulkan1:arm64
+          - libxt6:arm64
+          - mesa-vulkan-drivers:arm64
+          - pipewire-bin:arm64
+          - pipewire-pulse:arm64
+        - to armhf:
+          - libasound2:armhf
+          - libcurl4:armhf
+          - libpci3:armhf
+          - libpipewire-0.3-0:armhf
+          - libpipewire-0.3-modules:armhf
+          - libspa-0.2-modules:armhf
+          - libspeechd2:armhf
+          - libvulkan1:armhf
+          - libxt6:armhf
+          - mesa-vulkan-drivers:armhf
+          - pipewire-bin:armhf
+          - pipewire-pulse:armhf
+        - else:
+          - libasound2
+          - libcurl4
+          - libpci3
+          - libpipewire-0.3-0
+          - libpipewire-0.3-modules
+          - libspa-0.2-modules
+          - libspeechd2
+          - libvulkan1
+          - libxt6
+          - mesa-vulkan-drivers
+          - pipewire-bin
+          - pipewire-pulse
+      - else:
+        - libasound2
+        - libcurl4
+        - libpci3
+        - libpipewire-0.3-0
+        - libpipewire-0.3-modules
+        - libspa-0.2-modules
+        - libspeechd2
+        - libvulkan1
+        - libxt6
+        - mesa-vulkan-drivers
+        - pipewire-bin
+        - pipewire-pulse
     prime:
       - default256.png
       - firefox.desktop
       - usr/lib/firefox
-      - usr/lib/*/libasn1.so.*
-      - usr/lib/*/libcurl.so.*
-      - usr/lib/*/libgssapi.so.*
-      - usr/lib/*/libhcrypto.so.*
-      - usr/lib/*/libheimbase.so.*
-      - usr/lib/*/libheimntlm.so.*
-      - usr/lib/*/libhogweed.so.*
-      - usr/lib/*/libhx509.so.*
-      - usr/lib/*/libkrb5.so.*
-      - usr/lib/*/liblber-2.4.so.*
-      - usr/lib/*/libldap_r-2.4.so.*
-      - usr/lib/*/libnettle.so.*
-      - usr/lib/*/libnghttp2.so.*
-      - usr/lib/*/libpci.so.*
-      - usr/lib/*/libpipewire*.so*
-      - usr/lib/*/libroken.so.*
-      - usr/lib/*/librtmp.so.*
-      - usr/lib/*/libsasl2.so.*
-      - usr/lib/*/libspeechd.so.*
-      - usr/lib/*/libssh.so.*
-      - usr/lib/*/libssl.so.*
-      - usr/lib/*/libvulkan*
-      - usr/lib/*/libVkLayer*
-      - usr/lib/*/libwind.so.*
-      - usr/lib/*/libXt.so.*
-      - usr/lib/*/pipewire-*
-      - usr/lib/*/spa-*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libasn1.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libcurl.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libgssapi.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libhcrypto.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libheimbase.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libheimntlm.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libhogweed.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libhx509.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libkrb5.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/liblber-2.4.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libldap_r-2.4.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libnettle.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libnghttp2.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libpci.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libpipewire*.so*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libroken.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/librtmp.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libsasl2.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libspeechd.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libssh.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libssl.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libvulkan*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libVkLayer*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libwind.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libXt.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/pipewire-*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/spa-*
       - usr/share/alsa
       - usr/share/pipewire
       - usr/share/vulkan
@@ -538,37 +674,45 @@ parts:
     # Not using the ffmpeg snap (which might provide a more recent version)
     # because it is currently built on core18
     stage-packages:
-      - libavcodec58
+      - on amd64:
+        - to arm64:
+          - libavcodec58:arm64
+        - to armhf:
+          - libavcodec58:armhf
+        - else:
+          - libavcodec58
+      - else:
+        - libavcodec58
     prime:
-      - usr/lib/*/libaom.so.*
-      - usr/lib/*/libavcodec.so.*
-      - usr/lib/*/libavutil.so.*
-      - usr/lib/*/libcodec2.so.*
-      - usr/lib/*/libdav1d.so.*
-      - usr/lib/*/libgsm.so.*
-      - usr/lib/*/libmd.so.*
-      - usr/lib/*/libmfx.so.*
-      - usr/lib/*/libmp3lame.so.*
-      - usr/lib/*/libnuma.so.*
-      - usr/lib/*/libOpenCL.so.*
-      - usr/lib/*/libopus.so.*
-      - usr/lib/*/libshine.so.*
-      - usr/lib/*/libsnappy.so.*
-      - usr/lib/*/libsoxr.so.*
-      - usr/lib/*/libspeex.so.*
-      - usr/lib/*/libswresample.so.*
-      - usr/lib/*/libtheoradec.so.*
-      - usr/lib/*/libtheoraenc.so.*
-      - usr/lib/*/libtwolame.so.*
-      - usr/lib/*/libvdpau.so.*
-      - usr/lib/*/libvpx.so.*
-      - usr/lib/*/libwavpack.so.*
-      - usr/lib/*/libwebpmux.so.*
-      - usr/lib/*/libwebp.so.*
-      - usr/lib/*/libx264.so.*
-      - usr/lib/*/libx265.so.*
-      - usr/lib/*/libxvidcore.so.*
-      - usr/lib/*/libzvbi.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libaom.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libavcodec.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libavutil.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libcodec2.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libdav1d.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libgsm.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libmd.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libmfx.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libmp3lame.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libnuma.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libOpenCL.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libopus.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libshine.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libsnappy.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libsoxr.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libspeex.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libswresample.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libtheoradec.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libtheoraenc.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libtwolame.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libvdpau.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libvpx.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libwavpack.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libwebpmux.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libwebp.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libx264.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libx265.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libxvidcore.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/libzvbi.so.*
 
   apikeys:
     plugin: nil
@@ -608,7 +752,7 @@ parts:
           rm "$CRAFT_PROJECT_DIR/symbols-upload-token"
           deactivate
         else
-          cp $SYMBOLS_ARCHIVE $CRAFT_PROJECT_DIR/$CRAFT_PROJECT_NAME_$(craftctl get version)_$CRAFT_TARGET_ARCH.debug
+          cp $SYMBOLS_ARCHIVE $CRAFT_PROJECT_DIR/$CRAFT_PROJECT_NAME_$(craftctl get version)_$CRAFT_ARCH_BUILD_FOR.debug
         fi
       fi
 
