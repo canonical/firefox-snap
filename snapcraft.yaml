@@ -20,6 +20,21 @@ confinement: strict
 grade: stable
 base: core22
 compression: lzo
+architectures:
+  - build-on: [amd64]
+    build-for: [amd64]
+  - build-on: [amd64, armhf]
+    build-for: [armhf]
+  - build-on: [amd64, arm64]
+    build-for: [arm64]
+
+package-repositories:
+  - type: apt
+    architectures: [armhf, arm64]
+    components: [main, multiverse, universe]
+    suites: [jammy, jammy-updates, jammy-security]
+    key-id: F6ECB3762474EDA9D21B7022871920D1991BC93C
+    url: http://ports.ubuntu.com/
 
 assumes:
   - snapd2.54 # for mount-control
@@ -34,8 +49,8 @@ apps:
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: "$SNAP/usr/share/pipewire/pipewire.conf"
-      PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/pipewire-0.3"
-      SPA_PLUGIN_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/spa-0.2"
+      PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/pipewire-0.3"
+      SPA_PLUGIN_DIR: "$SNAP/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/spa-0.2"
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
     slots:
       - dbus-daemon
@@ -126,6 +141,13 @@ parts:
     override-build: |
       REQUIRED_RUST_VERSION=1.70.0
       sh rustup.sh -q -y --default-toolchain $REQUIRED_RUST_VERSION
+      if [ $CRAFT_ARCH_BUILD_ON != $CRAFT_ARCH_BUILD_FOR ]; then
+        if [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
+          $HOME/.cargo/bin/rustup target add aarch64-unknown-linux-gnu
+        elif [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
+          $HOME/.cargo/bin/rustup target add thumbv7neon-unknown-linux-gnueabihf
+        fi
+      fi
     override-prime: ''
 
   cbindgen:
@@ -151,24 +173,24 @@ parts:
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
       BINARIES_BASENAME=clang+llvm-$LLVM_RELEASE
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
         BINARIES_SUFFIX=x86_64-linux-gnu-ubuntu-22.04.tar.xz
-      elif [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+      elif [ $CRAFT_ARCH_BUILD_ON = "armhf" ]; then
         BINARIES_SUFFIX=armv7a-linux-gnueabihf.tar.xz
-      elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      elif [ $CRAFT_ARCH_BUILD_ON = "arm64" ]; then
         BINARIES_SUFFIX=aarch64-linux-gnu.tar.xz
       fi
       wget -O - $ROOT/$BINARIES_BASENAME-$BINARIES_SUFFIX | tar -x --xz
       # And cmake-$LLVM_RELEASE.src needed on LLVM >= 15.0.0
       wget -O - $ROOT/cmake-$LLVM_RELEASE.src.tar.xz | tar -x --xz
       mv cmake-$LLVM_RELEASE.src cmake
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
         # And the sources to build LLVMgold.so, which isn't distributed in a binary form
         wget -O - $ROOT/llvm-$LLVM_RELEASE.src.tar.xz | tar -x --xz
       fi
     override-build: |
       craftctl default
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
         cd llvm-$LLVM_RELEASE.src
         mkdir build
         cd build
@@ -191,7 +213,7 @@ parts:
       - jq
       - python3-yaml
     override-pull: |
-      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
         ROOT=https://ftp.mozilla.org/pub/firefox/nightly/latest-mozilla-central
         REVISION=$(wget -O - $ROOT/firefox-$(craftctl get version).en-US.linux-x86_64.txt | tail -1 | sed -n "s#^.*\/rev/\(.*\)\$#\1#p")
         FETCHES=https://hg.mozilla.org/mozilla-central/raw-file/${REVISION}/taskcluster/ci/fetch/toolchains.yml
@@ -203,7 +225,7 @@ parts:
       fi
     override-build: |
       craftctl default
-      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
         $HOME/.cargo/bin/cargo build --release
         mkdir -p $CRAFT_STAGE/usr/bin/
         cp target/release/dump_syms $CRAFT_STAGE/usr/bin/
@@ -257,11 +279,11 @@ parts:
       - NODEJS_RELEASE: "v18.12.1"
     override-pull: |
       ROOT=https://nodejs.org/dist/$NODEJS_RELEASE/node-$NODEJS_RELEASE-linux-
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
         SUFFIX=x64.tar.xz
-      elif [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+      elif [ $CRAFT_ARCH_BUILD_ON = "armhf" ]; then
         SUFFIX=armv7l.tar.xz
-      elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      elif [ $CRAFT_ARCH_BUILD_ON = "arm64" ]; then
         SUFFIX=arm64.tar.xz
       fi
       wget -O - $ROOT$SUFFIX | tar -x --xz
@@ -269,6 +291,52 @@ parts:
       craftctl default
       cp -R node-$NODEJS_RELEASE-linux-*/ $CRAFT_PART_INSTALL/usr/
     override-prime: ''
+
+  gnome-sdk-arch:
+    plugin: nil
+    build-packages:
+      - curl
+      - jq
+    override-pull: |
+      if [ $CRAFT_ARCH_BUILD_ON != $CRAFT_ARCH_BUILD_FOR ]; then
+        SDK_SNAP_NAME=gnome-42-2204-sdk
+        # Needs to be remove when a fixed GNOME SDK is published
+        if [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
+          SDK_SNAP_REVISION=196
+        elif [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
+          SDK_SNAP_REVISION=197
+        fi
+        curl -sSL https://github.com/lissyx/firefox-snap/releases/download/gnome-sdk-sysroot/gnome-42-2204-sdk_0+git.eaedc8e-dirty_${CRAFT_ARCH_BUILD_FOR}.snap > /snap/${SDK_SNAP_NAME}_${SDK_SNAP_REVISION}.snap
+        # Needs to be enabled when a fixed GNOME SDK is published
+        ##        SDK_SNAP_REVISION=$(curl -s -H 'Content-Type: application/json' -H 'Snap-Device-Series: 16' "http://api.snapcraft.io/v2/snaps/info/$SDK_SNAP_NAME" | jq --arg arch $CRAFT_ARCH_BUILD_FOR -r '."channel-map" | . [] | select(.channel.name == "stable") | select (.channel.architecture == $arch) | .revision')
+        ##        cd /snap && snap download $SDK_SNAP_NAME --revision=$SDK_SNAP_REVISION
+        cd /snap/$SDK_SNAP_NAME/ && unsquashfs -f -d $SDK_SNAP_REVISION/ ../${SDK_SNAP_NAME}_${SDK_SNAP_REVISION}.snap
+        rm /snap/${SDK_SNAP_NAME}_${SDK_SNAP_REVISION}.*
+        # HACKS
+        # Fix for using as --sysroot=
+        sed -ri \
+          "s|/snap/${SDK_SNAP_NAME}/current||g" \
+          /snap/${SDK_SNAP_NAME}/${SDK_SNAP_REVISION}/usr/lib/*/pkgconfig/*.pc \
+          /snap/${SDK_SNAP_NAME}/${SDK_SNAP_REVISION}/usr/lib/pkgconfig/*.pc \
+          /snap/${SDK_SNAP_NAME}/${SDK_SNAP_REVISION}/usr/share/pkgconfig/*.pc \
+          /snap/${SDK_SNAP_NAME}/${SDK_SNAP_REVISION}/usr/bin/itstool \
+          /snap/${SDK_SNAP_NAME}/${SDK_SNAP_REVISION}/usr/bin/libtoolize
+        # some libs are using symlinks to absolute paths, breaking (silently)
+        # the link step (e.g., missing libm.so ends up linking with libm.a)
+        for lib in $(find /snap/${SDK_SNAP_NAME}/${SDK_SNAP_REVISION}/usr/lib/ -type l -lname "/*" -name "*.so*");
+        do
+          LIB_SO="$(basename $lib)"
+          LIB_SOV="${LIB_SO}.$(basename "$(readlink $lib)" | cut -d'.' -f3)"
+          if [ -L /snap/${SDK_SNAP_NAME}/${SDK_SNAP_REVISION}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${LIB_SO} ]; then
+            rm /snap/${SDK_SNAP_NAME}/${SDK_SNAP_REVISION}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${LIB_SO}
+            ln -s /snap/${SDK_SNAP_NAME}/${SDK_SNAP_REVISION}/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${LIB_SOV} /snap/${SDK_SNAP_NAME}/${SDK_SNAP_REVISION}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${LIB_SO}
+          fi
+        done;
+        # END OF HACKS
+        echo $SDK_SNAP_REVISION > $CRAFT_STAGE/$SDK_SNAP_NAME.txt
+      else
+        echo "No cross-compilation"
+      fi
 
   mozconfig:
     plugin: nil
@@ -295,6 +363,7 @@ parts:
       - dump-syms
       - ffmpeg
       - firefox-langpacks
+      - gnome-sdk-arch
       - hunspell
       - mozconfig
       - nodejs
@@ -334,7 +403,8 @@ parts:
       # easily rerun.
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
       BUILD_DBGSYMS=false
-      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
+        # TODO: Update above comment?
         # Build and publish debug symbols for amd64 and arm64 only,
         # because Launchpad builders for armhf choke (OOM) when
         # building with debug symbols enabled, even with
@@ -347,10 +417,12 @@ parts:
       # Same goes for arm64 builds on Launchpad.  It seems we can't
       # detect $GITHUB_WORKSPACE, so we assume presence of the file
       # "symbols-upload-token" means we are running on GitHub.
-      if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token"] || [ $CRAFT_TARGET_ARCH = "arm64" ] || [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+      # TODO: GitHub Actions is dead so far
+      ## if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token" ] || [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
+      ##   patch -p1 < $CRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
+      ## fi
+      if [ $CRAFT_ARCH_BUILD_ON = "armhf" || $CRAFT_ARCH_BUILD_ON = "arm64" ]; then
         patch -p1 < $CRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
-      fi
-      if [ $CRAFT_TARGET_ARCH = "armhf" ]; then
         patch -p1 < $CRAFT_PROJECT_DIR/patches/armhf-thin-lto.patch
       fi
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
@@ -361,44 +433,69 @@ parts:
       else
         echo "ac_add_options --disable-debug-symbols" >> $MOZCONFIG
       fi
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # Enable LTO and PGO (https://firefox-source-docs.mozilla.org/build/buildsystem/pgo.html) only on amd64 for now.
         # Linking with gold fails on armhf (error: undefined reference to '__aeabi_uldivmod') and would need to be
         # investigated further, and running PGO on arm64 takes forever (> 4 days in the Launchpad build environment!).
         echo "ac_add_options --enable-linker=lld" >> $MOZCONFIG
         echo "ac_add_options MOZ_PGO=1" >> $MOZCONFIG
       fi
-      if [ $CRAFT_TARGET_ARCH != "armhf" ]; then
+      # TODO: Revisit?
+      if [ $CRAFT_ARCH_BUILD_ON != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
+      fi
+      if [ $CRAFT_ARCH_BUILD_ON != $CRAFT_ARCH_BUILD_FOR ]; then
+        GNOME_SDK_SNAP_BASE=gnome-42-2204-sdk
+        GNOME_SDK_SNAP_REVISION=$(cat $CRAFT_STAGE/$GNOME_SDK_SNAP_BASE.txt)
+        if [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
+          echo "ac_add_options --target=aarch64-linux-gnu" >> $MOZCONFIG
+          echo "ac_add_options --enable-linker=lld" >> $MOZCONFIG
+        fi
+        if [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
+          echo "ac_add_options --target=arm-linux-gnueabihf" >> $MOZCONFIG
+          echo "ac_add_options --with-thumb=yes" >> $MOZCONFIG
+          echo "ac_add_options --with-arch=armv7" >> $MOZCONFIG
+          echo "ac_add_options --with-fpu=neon" >> $MOZCONFIG
+          echo "ac_add_options --enable-linker=lld" >> $MOZCONFIG
+        fi
+        echo "ac_add_options --sysroot=/snap/$GNOME_SDK_SNAP_BASE/$GNOME_SDK_SNAP_REVISION" >> $MOZCONFIG
       fi
     override-build: |
       craftctl default
       export PATH=$HOME/.cargo/bin:$PATH
-      GNOME_SDK_SNAP=/snap/gnome-42-2204-sdk/current
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      GNOME_SDK_SNAP_BASE=gnome-42-2204-sdk
+      GNOME_SDK_SNAP_REVISION=current
+      if [ $CRAFT_ARCH_BUILD_ON != $CRAFT_ARCH_BUILD_FOR ]; then
+        GNOME_SDK_SNAP_REVISION=$(cat $CRAFT_STAGE/$GNOME_SDK_SNAP_BASE.txt)
+      fi
+      GNOME_SDK_SNAP=/snap/$GNOME_SDK_SNAP_BASE/$GNOME_SDK_SNAP_REVISION
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # "clang -dumpmachine" returns "x86_64-unknown-linux-gnu" on
         # amd64 (at least the binaries they distribute), but what we
         # really need is "x86_64-pc-linux-gnu"; so let's hard-code it.
         export TARGET_TRIPLET="x86_64-pc-linux-gnu"
-      else
-        export TARGET_TRIPLET=$(clang -dumpmachine)
+      elif [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
+        export TARGET_TRIPLET="aarch64-unknown-linux-gnu"
+      elif [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
+        export TARGET_TRIPLET="arm-linux-gnueabihf"
       fi
-      export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
+      export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR} -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib -Wl,-rpath-link=/usr/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/lib/"
       export LDFLAGS="-Wl,-rpath-link=$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/dist/bin${LDFLAGS:+ $LDFLAGS}"
       export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      export PKG_CONFIG_PATH=$GNOME_SDK_SNAP/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/pkgconfig/:$GNOME_SDK_SNAP/usr/lib/pkgconfig/:$GNOME_SDK_SNAP/usr/share/pkgconfig/:/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/pkgconfig/
       export WASI_SYSROOT=$CRAFT_STAGE/wasi-sysroot
       export MOZBUILD_STATE_PATH=$CRAFT_PART_BUILD/.mozbuild
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       BUILD_DBGSYMS=false
-      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
         # See override-pull above for why we only build debug symbols
         # on these arches.
         BUILD_DBGSYMS=true
       fi
       unset PYTHONPATH
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # Needed for PGO-enabled builds that execute the built binaries. This should mirror the link paths in $LDFLAGS.
-        export LD_LIBRARY_PATH="$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET:$GNOME_SDK_SNAP/usr/lib"
+        export LD_LIBRARY_PATH="$GNOME_SDK_SNAP/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}:$GNOME_SDK_SNAP/usr/lib"
         # Ensure the instrumented binary is run against the right version of libssl3.so and libnss3.so
         # (locally-built versions are more recent than the ones in the gnome platform snap)
         export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/instrumented/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -406,7 +503,7 @@ parts:
       MACH="/usr/bin/python3 ./mach"
       $MACH configure --prefix=$CRAFT_PART_INSTALL/usr
       $MACH uniffi generate # workaround for https://bugzilla.mozilla.org/1797714
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
         xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build --verbose -j$CRAFT_PARALLEL_BUILD_COUNT
       else
@@ -437,18 +534,59 @@ parts:
       mkdir $CRAFT_PART_INSTALL/{gnome-platform,data-dir,data-dir/{icons,sounds,themes}}
       craftctl default
     stage-packages:
-      - libasound2
-      - libcurl4
-      - libpci3
-      - libpipewire-0.3-0
-      - libpipewire-0.3-modules
-      - libspa-0.2-modules
-      - libspeechd2
-      - libvulkan1
-      - libxt6
-      - mesa-vulkan-drivers
-      - pipewire-bin
-      - pipewire-pulse
+      - on amd64:
+        - to arm64:
+          - libasound2:arm64
+          - libcurl4:arm64
+          - libpci3:arm64
+          - libpipewire-0.3-0:arm64
+          - libpipewire-0.3-modules:arm64
+          - libspa-0.2-modules:arm64
+          - libspeechd2:arm64
+          - libvulkan1:arm64
+          - libxt6:arm64
+          - mesa-vulkan-drivers:arm64
+          - pipewire-bin:arm64
+          - pipewire-pulse:arm64
+        - to armhf:
+          - libasound2:armhf
+          - libcurl4:armhf
+          - libpci3:armhf
+          - libpipewire-0.3-0:armhf
+          - libpipewire-0.3-modules:armhf
+          - libspa-0.2-modules:armhf
+          - libspeechd2:armhf
+          - libvulkan1:armhf
+          - libxt6:armhf
+          - mesa-vulkan-drivers:armhf
+          - pipewire-bin:armhf
+          - pipewire-pulse:armhf
+        - else:
+          - libasound2
+          - libcurl4
+          - libpci3
+          - libpipewire-0.3-0
+          - libpipewire-0.3-modules
+          - libspa-0.2-modules
+          - libspeechd2
+	  - libvulkan1
+          - libxt6
+          - mesa-vulkan-drivers
+          - pipewire-bin
+          - pipewire-pulse
+      - else:
+        - libasound2
+        - libcurl4
+        - libpci3
+        - libpipewire-0.3-0
+        - libpipewire-0.3-modules
+        - libspa-0.2-modules
+        - libspeechd2
+	- libvulkan1
+        - libxt6
+	- mesa-vulkan-drivers
+        - pipewire-bin
+        - pipewire-pulse
     prime:
       - default256.png
       - firefox.desktop
@@ -530,7 +668,15 @@ parts:
     # Not using the ffmpeg snap (which might provide a more recent version)
     # because it is currently built on core18
     stage-packages:
-      - libavcodec58
+      - on amd64:
+        - to arm64:
+          - libavcodec58:arm64
+        - to armhf:
+          - libavcodec58:armhf
+        - else:
+          - libavcodec58
+      - else:
+        - libavcodec58
     prime:
       - usr/lib/*/libaom.so.*
       - usr/lib/*/libavcodec.so.*
@@ -600,7 +746,7 @@ parts:
           rm "$CRAFT_PROJECT_DIR/symbols-upload-token"
           deactivate
         else
-          cp $SYMBOLS_ARCHIVE $CRAFT_PROJECT_DIR/$CRAFT_PROJECT_NAME_$(craftctl get version)_$CRAFT_TARGET_ARCH.debug
+          cp $SYMBOLS_ARCHIVE $CRAFT_PROJECT_DIR/$CRAFT_PROJECT_NAME_$(craftctl get version)_$CRAFT_ARCH_BUILD_FOR.debug
         fi
       fi
 
