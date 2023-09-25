@@ -269,7 +269,10 @@ parts:
 
   mozconfig:
     plugin: nil
-    override-stage: |
+    # This should be 'pull' step so that firefox.pull step can add more
+    # configure flags to mozconfig ; if it's stage then firefox.pull will put
+    # content that we will overwrite here
+    override-pull: |
       cp $CRAFT_PROJECT_DIR/mozconfig.in $CRAFT_STAGE/mozconfig
     override-prime: ''
 
