@@ -416,9 +416,9 @@ parts:
       unset SNAP_INSTANCE_NAME
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
-        xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build -j$CRAFT_PARALLEL_BUILD_COUNT
+        xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build --verbose -j$CRAFT_PARALLEL_BUILD_COUNT
       else
-        $MACH build -j$CRAFT_PARALLEL_BUILD_COUNT
+        $MACH build --verbose -j$CRAFT_PARALLEL_BUILD_COUNT
       fi
       find . -name 'dep-graph.bin' -delete
       find . -name 'query-cache.bin' -delete
