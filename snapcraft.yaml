@@ -362,7 +362,6 @@ parts:
         # Linking with gold fails on armhf (error: undefined reference to '__aeabi_uldivmod') and would need to be
         # investigated further, and running PGO on arm64 takes forever (> 4 days in the Launchpad build environment!).
         echo "ac_add_options --enable-linker=gold" >> $MOZCONFIG
-        echo "ac_add_options --enable-lto=cross" >> $MOZCONFIG
         echo "ac_add_options MOZ_PGO=1" >> $MOZCONFIG
       fi
       if [ $CRAFT_TARGET_ARCH != "armhf" ]; then
