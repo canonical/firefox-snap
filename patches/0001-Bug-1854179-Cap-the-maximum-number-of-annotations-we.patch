@@ -1,0 +1,96 @@
+From 50c3af1b83395f08e39da7be819ef32763b818dd Mon Sep 17 00:00:00 2001
+From: Gabriele Svelto <gsvelto@mozilla.com>
+Date: Tue, 26 Sep 2023 07:47:12 +0000
+Subject: [PATCH] Bug 1854179 - Cap the maximum number of annotations we fetch
+ from a child process r=gerard-majax
+
+Differential Revision: https://phabricator.services.mozilla.com/D188969
+---
+ .../mozannotation_server/src/lib.rs             | 11 ++++++++---
+ toolkit/crashreporter/nsExceptionHandler.cpp    | 17 ++++++++++-------
+ 2 files changed, 18 insertions(+), 10 deletions(-)
+
+diff --git a/toolkit/crashreporter/mozannotation_server/src/lib.rs b/toolkit/crashreporter/mozannotation_server/src/lib.rs
+index efc5f9603a13c..ae0bf4eb4e31d 100644
+--- a/toolkit/crashreporter/mozannotation_server/src/lib.rs
++++ b/toolkit/crashreporter/mozannotation_server/src/lib.rs
+@@ -10,6 +10,7 @@ use process_reader::ProcessReader;
+ 
+ use mozannotation_client::{Annotation, AnnotationContents, AnnotationMutex};
+ use nsstring::nsCString;
++use std::cmp::min;
+ use std::iter::FromIterator;
+ use std::mem::size_of;
+ use std::ptr::null_mut;
+@@ -40,8 +41,11 @@ type ProcessHandle = mach2::mach_types::task_t;
+ ///
+ /// This function will be exposed to C++
+ #[no_mangle]
+-pub extern "C" fn mozannotation_retrieve(process: usize) -> *mut ThinVec<CAnnotation> {
+-    let result = retrieve_annotations(process as _);
++pub extern "C" fn mozannotation_retrieve(
++    process: usize,
++    max_annotations: usize,
++) -> *mut ThinVec<CAnnotation> {
++    let result = retrieve_annotations(process as _, max_annotations);
+     match result {
+         // Leak the object as it will be owned by the C++ code from now on
+         Ok(annotations) => Box::into_raw(annotations) as *mut _,
+@@ -64,6 +68,7 @@ pub unsafe extern "C" fn mozannotation_free(ptr: *mut ThinVec<CAnnotation>) {
+ 
+ pub fn retrieve_annotations(
+     process: ProcessHandle,
++    max_annotations: usize,
+ ) -> Result<Box<ThinVec<CAnnotation>>, RetrievalError> {
+     let reader = ProcessReader::new(process)?;
+     let address = reader.find_annotations()?;
+@@ -77,7 +82,7 @@ pub fn retrieve_annotations(
+ 
+     let vec_pointer = contents.as_ptr();
+     let length = contents.len();
+-    let mut annotations = ThinVec::<CAnnotation>::with_capacity(length);
++    let mut annotations = ThinVec::<CAnnotation>::with_capacity(min(max_annotations, length));
+ 
+     for i in 0..length {
+         let annotation_address = unsafe { vec_pointer.add(i) };
+diff --git a/toolkit/crashreporter/nsExceptionHandler.cpp b/toolkit/crashreporter/nsExceptionHandler.cpp
+index 696e21710bbfc..5d62f60834d41 100644
+--- a/toolkit/crashreporter/nsExceptionHandler.cpp
++++ b/toolkit/crashreporter/nsExceptionHandler.cpp
+@@ -3245,12 +3245,14 @@ static void OnChildProcessDumpRequested(
+ 
+ #if XP_WIN
+   nsTArray<CAnnotation>* child_annotations = mozannotation_retrieve(
+-      reinterpret_cast<uintptr_t>(aClientInfo.process_handle()));
++      reinterpret_cast<uintptr_t>(aClientInfo.process_handle()),
++      static_cast<size_t>(Annotation::Count));
+ #elif defined(XP_MACOSX)
+-  nsTArray<CAnnotation>* child_annotations =
+-      mozannotation_retrieve(aClientInfo.task());
++  nsTArray<CAnnotation>* child_annotations = mozannotation_retrieve(
++      aClientInfo.task(), static_cast<size_t>(Annotation::Count));
+ #else
+-  nsTArray<CAnnotation>* child_annotations = mozannotation_retrieve(pid);
++  nsTArray<CAnnotation>* child_annotations =
++      mozannotation_retrieve(pid, static_cast<size_t>(Annotation::Count));
+ #endif
+ 
+   // TODO: Write a minimal set of annotations if we fail to read them, and
+@@ -3849,10 +3851,11 @@ bool CreateMinidumpsAndPair(ProcessHandle aTargetHandle,
+   AddSharedAnnotations(aTargetAnnotations);
+ #if XP_WIN
+   nsTArray<CAnnotation>* child_annotations =
+-      mozannotation_retrieve(reinterpret_cast<uintptr_t>(aTargetHandle));
++      mozannotation_retrieve(reinterpret_cast<uintptr_t>(aTargetHandle),
++                             static_cast<size_t>(Annotation::Count));
+ #else
+-  nsTArray<CAnnotation>* child_annotations =
+-      mozannotation_retrieve(aTargetHandle);
++  nsTArray<CAnnotation>* child_annotations = mozannotation_retrieve(
++      aTargetHandle, static_cast<size_t>(Annotation::Count));
+ #endif
+   AddChildProcessAnnotations(aTargetAnnotations, child_annotations);
+   if (child_annotations) {
+-- 
+2.39.2
+
