@@ -342,14 +342,14 @@ parts:
         # patches/mozilla-reduce-rust-debuginfo.patch applied,
         # at least as of 2023-06-25.
         BUILD_DBGSYMS=true
-        # GitHub Actions is limited to 2 CPUs and 7GB RAM, and
-        # too much debug info from Rust will make gkrust linkage fail.
-        # Same goes for arm64 builds on Launchpad.  It seems we can't
-        # detect $GITHUB_WORKSPACE, so we assume presence of the file
-        # "symbols-upload-token" means we are running on GitHub.
-        if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token"] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
-          patch -p1 < $CRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
-        fi
+      fi
+      # GitHub Actions is limited to 2 CPUs and 7GB RAM, and
+      # too much debug info from Rust will make gkrust linkage fail.
+      # Same goes for arm64 builds on Launchpad.  It seems we can't
+      # detect $GITHUB_WORKSPACE, so we assume presence of the file
+      # "symbols-upload-token" means we are running on GitHub.
+      if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token"] || [ $CRAFT_TARGET_ARCH = "arm64" ] || [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+        patch -p1 < $CRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
       fi
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       if [ $BUILD_DBGSYMS = "true" ]; then
