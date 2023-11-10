@@ -1,0 +1,30 @@
+Description: Do not enable LTO for rustc to work around OOM failures
+ on Launchpad armhf builders.
+Author: Olivier Tilloy <olivier.tilloy@canonical.com>
+Author: Amin Bandali <bandali@canonical.com>
+Forwarded: not-needed
+
+diff --git a/Cargo.toml b/Cargo.toml
+index 4682b976d3..f13cbe8411 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -64,6 +64,7 @@ debug-assertions = true
+ panic = "abort"
+ 
+ [profile.release]
++lto = "thin"
+ opt-level = 2
+ rpath = false
+ debug-assertions = false
+diff --git a/config/makefiles/rust.mk b/config/makefiles/rust.mk
+index d0f52d6c1b..0a1df7069b 100644
+--- a/config/makefiles/rust.mk
++++ b/config/makefiles/rust.mk
+@@ -92,7 +92,6 @@ ifndef rustflags_sancov
+ # Never enable when coverage is enabled to work around https://github.com/rust-lang/rust/issues/90045.
+ ifndef MOZ_CODE_COVERAGE
+ ifeq (,$(findstring gkrust_gtest,$(RUST_LIBRARY_FILE)))
+-cargo_rustc_flags += -Clto$(if $(filter full,$(MOZ_LTO_RUST_CROSS)),=fat)
+ endif
+ # We need -Cembed-bitcode=yes for all crates when using -Clto.
+ RUSTFLAGS += -Cembed-bitcode=yes
