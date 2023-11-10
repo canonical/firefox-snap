@@ -348,6 +348,9 @@ parts:
       if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token"] || [ $CRAFT_TARGET_ARCH = "arm64" ] || [ $CRAFT_TARGET_ARCH = "armhf" ]; then
         patch -p1 < $CRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
       fi
+      if [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+        patch -p1 < $CRAFT_PROJECT_DIR/patches/armhf-thin-lto.patch
+      fi
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       if [ $BUILD_DBGSYMS = "true" ]; then
         echo "ac_add_options --enable-debug-symbols" >> $MOZCONFIG
