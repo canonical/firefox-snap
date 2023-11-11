@@ -40,6 +40,7 @@ apps:
       - dbus-daemon
       - mpris
     plugs:
+      - alsa
       - audio-playback
       - audio-record
       - avahi-observe
