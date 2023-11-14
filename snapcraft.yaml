@@ -113,6 +113,8 @@ plugs:
 layout:
   /usr/share/libdrm:
     bind: $SNAP/gnome-platform/usr/share/libdrm
+  /usr/share/alsa:
+    bind: $SNAP/usr/share/alsa
 
 parts:
   rust:
