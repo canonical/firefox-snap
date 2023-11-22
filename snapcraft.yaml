@@ -41,6 +41,7 @@ apps:
       - dbus-daemon
       - mpris
     plugs:
+      - alsa
       - audio-playback
       - audio-record
       - avahi-observe
@@ -113,6 +114,8 @@ plugs:
 layout:
   /usr/share/libdrm:
     bind: $SNAP/gnome-platform/usr/share/libdrm
+  /usr/share/alsa:
+    bind: $SNAP/usr/share/alsa
 
 parts:
   rust:
@@ -448,6 +451,7 @@ parts:
       mkdir $CRAFT_PART_INSTALL/{gnome-platform,data-dir,data-dir/{icons,sounds,themes}}
       craftctl default
     stage-packages:
+      - libasound2
       - libcurl4
       - libpci3
       - libpipewire-0.3-0
@@ -490,6 +494,7 @@ parts:
       - usr/lib/*/libXt.so.*
       - usr/lib/*/pipewire-*
       - usr/lib/*/spa-*
+      - usr/share/alsa
       - usr/share/pipewire
       - usr/share/vulkan
       # Workaround for LP: #2016358 (see the 'override-stage' above).
