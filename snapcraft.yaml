@@ -354,6 +354,8 @@ parts:
         patch -p1 < $CRAFT_PROJECT_DIR/patches/armhf-thin-lto.patch
       fi
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
+      echo "export MOZ_SOURCE_REPO=${REPO}" >> $MOZCONFIG
+      echo "export MOZ_SOURCE_CHANGESET=${REVISION}" >> $MOZCONFIG
       if [ $BUILD_DBGSYMS = "true" ]; then
         echo "ac_add_options --enable-debug-symbols" >> $MOZCONFIG
       else
