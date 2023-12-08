@@ -1,6 +1,41 @@
+From a4ffecce6b7d47f32768919068714ab988895d26 Mon Sep 17 00:00:00 2001
+From: Alexandre Lissy <lissyx+mozillians@lissyx.dyndns.org>
+Date: Fri, 8 Dec 2023 16:22:48 +0100
+Subject: [PATCH] NativeMessaging patch from Snap nightly
+
+---
+ modules/libpref/init/StaticPrefList.yaml      |  10 +
+ python/mozbuild/mozbuild/mozinfo.py           |   3 +
+ .../configs/unittests/linux_unittest.py       |   7 +-
+ .../extensions/NativeMessaging.sys.mjs        |  72 ++
+ .../extensions/NativeMessagingPortal.cpp      | 619 ++++++++++++++++++
+ .../extensions/NativeMessagingPortal.h        |  74 +++
+ toolkit/components/extensions/components.conf |  12 +
+ toolkit/components/extensions/moz.build       |   8 +
+ .../extensions/nsINativeMessagingPortal.idl   |  71 ++
+ .../test/xpcshell/native_messaging.toml       |   4 +
+ .../test_ext_native_messaging_portal.js       | 378 +++++++++++
+ toolkit/modules/subprocess/Subprocess.sys.mjs |  13 +
+ .../subprocess/subprocess_common.sys.mjs      |  32 +-
+ .../subprocess/subprocess_unix.sys.mjs        |   4 +
+ .../subprocess/subprocess_unix.worker.js      |  24 +-
+ .../modules/subprocess/subprocess_win.sys.mjs |   6 +
+ .../subprocess/subprocess_win.worker.js       |   6 +
+ .../subprocess/subprocess_worker_common.js    |  31 +-
+ .../test/xpcshell/test_subprocess.js          |  77 +++
+ widget/gtk/WidgetUtilsGtk.cpp                 |   2 +
+ widget/gtk/WidgetUtilsGtk.h                   |   1 +
+ 21 files changed, 1446 insertions(+), 8 deletions(-)
+ create mode 100644 toolkit/components/extensions/NativeMessagingPortal.cpp
+ create mode 100644 toolkit/components/extensions/NativeMessagingPortal.h
+ create mode 100644 toolkit/components/extensions/nsINativeMessagingPortal.idl
+ create mode 100644 toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js
+
+diff --git a/modules/libpref/init/StaticPrefList.yaml b/modules/libpref/init/StaticPrefList.yaml
+index 7706151a62c31..3da2f26d0438c 100644
 --- a/modules/libpref/init/StaticPrefList.yaml
 +++ b/modules/libpref/init/StaticPrefList.yaml
-@@ -15558,6 +15558,16 @@
+@@ -15656,6 +15656,16 @@
    value: 2
    mirror: always
  
@@ -17,11 +52,13 @@
  # Whether to try to use XDG portal for settings / look-and-feel information.
  # https://flatpak.github.io/xdg-desktop-portal/#gdbus-org.freedesktop.portal.Settings
  #  - 0: never
+diff --git a/python/mozbuild/mozbuild/mozinfo.py b/python/mozbuild/mozbuild/mozinfo.py
+index b640c5f1d0f31..4d98af5f32051 100644
 --- a/python/mozbuild/mozbuild/mozinfo.py
 +++ b/python/mozbuild/mozbuild/mozinfo.py
-@@ -146,6 +146,9 @@ def build_dict(config, env=os.environ):
- 
-     d["is_ubuntu"] = "Ubuntu" in platform.version()
+@@ -151,6 +151,9 @@ def build_dict(config, env=os.environ):
+     ):
+         d["android_min_sdk"] = substs["MOZ_ANDROID_MIN_SDK_VERSION"]
  
 +    if "MOZ_ENABLE_DBUS" in substs:
 +        d["dbus_enabled"] = bool(substs.get("MOZ_ENABLE_DBUS"))
@@ -29,9 +66,11 @@
      return d
  
  
+diff --git a/testing/mozharness/configs/unittests/linux_unittest.py b/testing/mozharness/configs/unittests/linux_unittest.py
+index e73a569d5e060..e65bc8e0cbffa 100644
 --- a/testing/mozharness/configs/unittests/linux_unittest.py
 +++ b/testing/mozharness/configs/unittests/linux_unittest.py
-@@ -33,7 +33,12 @@ else:
+@@ -34,7 +34,12 @@ else:
  #####
  config = {
      ###
@@ -45,9 +84,11 @@
      "installer_path": INSTALLER_PATH,
      "binary_path": BINARY_PATH,
      "xpcshell_name": XPCSHELL_NAME,
+diff --git a/toolkit/components/extensions/NativeMessaging.sys.mjs b/toolkit/components/extensions/NativeMessaging.sys.mjs
+index 20924f169d3a7..243a336751e29 100644
 --- a/toolkit/components/extensions/NativeMessaging.sys.mjs
 +++ b/toolkit/components/extensions/NativeMessaging.sys.mjs
-@@ -19,6 +19,13 @@ ChromeUtils.defineESModuleGetters(lazy, 
+@@ -19,6 +19,13 @@ ChromeUtils.defineESModuleGetters(lazy, {
  
  const { ExtensionError, promiseTimeout } = ExtensionUtils;
  
@@ -61,7 +102,7 @@
  // For a graceful shutdown (i.e., when the extension is unloaded or when it
  // explicitly calls disconnect() on a native port), how long we give the native
  // application to exit before we start trying to kill it.  (in milliseconds)
-@@ -59,6 +66,14 @@ export var NativeApp = class extends Eve
+@@ -59,6 +66,14 @@ export var NativeApp = class extends EventEmitter {
      this.sendQueue = [];
      this.writePromise = null;
      this.cleanupStarted = false;
@@ -76,7 +117,7 @@
  
      this.startupPromise = lazy.NativeManifests.lookupManifest(
        "stdio",
-@@ -114,6 +129,54 @@ export var NativeApp = class extends Eve
+@@ -117,6 +132,54 @@ export var NativeApp = class extends EventEmitter {
        });
    }
  
@@ -131,7 +172,7 @@
    /**
     * Open a connection to a native messaging host.
     *
-@@ -290,6 +353,15 @@ export var NativeApp = class extends Eve
+@@ -293,6 +356,15 @@ export var NativeApp = class extends EventEmitter {
  
      await this.startupPromise;
  
@@ -147,83 +188,9 @@
      if (!this.proc) {
        // Failed to initialize proc in the constructor.
        return;
---- /dev/null
-+++ b/toolkit/components/extensions/NativeMessagingPortal.h
-@@ -0,0 +1,74 @@
-+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-+/* This Source Code Form is subject to the terms of the Mozilla Public
-+ * License, v. 2.0. If a copy of the MPL was not distributed with this
-+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-+
-+#ifndef mozilla_extensions_NativeMessagingPortal_h
-+#define mozilla_extensions_NativeMessagingPortal_h
-+
-+#include "nsINativeMessagingPortal.h"
-+
-+#include <gio/gio.h>
-+
-+#include "mozilla/GRefPtr.h"
-+#include "mozilla/UniquePtr.h"
-+
-+#include <deque>
-+#include <unordered_map>
-+
-+namespace mozilla::extensions {
-+
-+enum class SessionState { Active, Closing, Error };
-+
-+class NativeMessagingPortal : public nsINativeMessagingPortal {
-+ public:
-+  NS_DECL_NSINATIVEMESSAGINGPORTAL
-+  NS_DECL_ISUPPORTS
-+
-+  static already_AddRefed<NativeMessagingPortal> GetSingleton();
-+
-+ private:
-+  NativeMessagingPortal();
-+  virtual ~NativeMessagingPortal();
-+
-+  RefPtr<GDBusProxy> mProxy;
-+  bool mInitialized = false;
-+  RefPtr<GCancellable> mCancellable;
-+
-+  struct DelayedCall;
-+  std::deque<UniquePtr<DelayedCall>> mPending;
-+
-+  using SessionsMap = std::unordered_map<std::string, SessionState>;
-+  SessionsMap mSessions;
-+
-+  // Callbacks
-+  static void OnProxyReady(GObject* source, GAsyncResult* result,
-+                           gpointer user_data);
-+  void MaybeDelayedIsAvailable(dom::Promise&, GVariant*);
-+  void MaybeDelayedCreateSession(dom::Promise&, GVariant*);
-+  static void OnCreateSessionDone(GObject* source, GAsyncResult* result,
-+                                  gpointer user_data);
-+  static void OnCloseSessionProxyReady(GObject* source, GAsyncResult* result,
-+                                       gpointer user_data);
-+  static void OnCloseSessionDone(GObject* source, GAsyncResult* result,
-+                                 gpointer user_data);
-+  static void OnSessionClosedSignal(GDBusConnection* bus,
-+                                    const gchar* sender_name,
-+                                    const gchar* object_path,
-+                                    const gchar* interface_name,
-+                                    const gchar* signal_name,
-+                                    GVariant* parameters, gpointer user_data);
-+  static void OnStartDone(GObject* source, GAsyncResult* result,
-+                          gpointer user_data);
-+  static void OnStartRequestResponseSignal(
-+      GDBusConnection* bus, const gchar* sender_name, const gchar* object_path,
-+      const gchar* interface_name, const gchar* signal_name,
-+      GVariant* parameters, gpointer user_data);
-+  static void OnGetPipesDone(GObject* source, GAsyncResult* result,
-+                             gpointer user_data);
-+};
-+
-+}  // namespace mozilla::extensions
-+
-+#endif  // mozilla_extensions_NativeMessagingPortal_h
+diff --git a/toolkit/components/extensions/NativeMessagingPortal.cpp b/toolkit/components/extensions/NativeMessagingPortal.cpp
+new file mode 100644
+index 0000000000000..5e6c6423dba14
 --- /dev/null
 +++ b/toolkit/components/extensions/NativeMessagingPortal.cpp
 @@ -0,0 +1,619 @@
@@ -846,6 +813,88 @@
 +}
 +
 +}  // namespace mozilla::extensions
+diff --git a/toolkit/components/extensions/NativeMessagingPortal.h b/toolkit/components/extensions/NativeMessagingPortal.h
+new file mode 100644
+index 0000000000000..20bb8c349cc83
+--- /dev/null
++++ b/toolkit/components/extensions/NativeMessagingPortal.h
+@@ -0,0 +1,74 @@
++/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
++/* vim: set ts=8 sts=2 et sw=2 tw=80: */
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++#ifndef mozilla_extensions_NativeMessagingPortal_h
++#define mozilla_extensions_NativeMessagingPortal_h
++
++#include "nsINativeMessagingPortal.h"
++
++#include <gio/gio.h>
++
++#include "mozilla/GRefPtr.h"
++#include "mozilla/UniquePtr.h"
++
++#include <deque>
++#include <unordered_map>
++
++namespace mozilla::extensions {
++
++enum class SessionState { Active, Closing, Error };
++
++class NativeMessagingPortal : public nsINativeMessagingPortal {
++ public:
++  NS_DECL_NSINATIVEMESSAGINGPORTAL
++  NS_DECL_ISUPPORTS
++
++  static already_AddRefed<NativeMessagingPortal> GetSingleton();
++
++ private:
++  NativeMessagingPortal();
++  virtual ~NativeMessagingPortal();
++
++  RefPtr<GDBusProxy> mProxy;
++  bool mInitialized = false;
++  RefPtr<GCancellable> mCancellable;
++
++  struct DelayedCall;
++  std::deque<UniquePtr<DelayedCall>> mPending;
++
++  using SessionsMap = std::unordered_map<std::string, SessionState>;
++  SessionsMap mSessions;
++
++  // Callbacks
++  static void OnProxyReady(GObject* source, GAsyncResult* result,
++                           gpointer user_data);
++  void MaybeDelayedIsAvailable(dom::Promise&, GVariant*);
++  void MaybeDelayedCreateSession(dom::Promise&, GVariant*);
++  static void OnCreateSessionDone(GObject* source, GAsyncResult* result,
++                                  gpointer user_data);
++  static void OnCloseSessionProxyReady(GObject* source, GAsyncResult* result,
++                                       gpointer user_data);
++  static void OnCloseSessionDone(GObject* source, GAsyncResult* result,
++                                 gpointer user_data);
++  static void OnSessionClosedSignal(GDBusConnection* bus,
++                                    const gchar* sender_name,
++                                    const gchar* object_path,
++                                    const gchar* interface_name,
++                                    const gchar* signal_name,
++                                    GVariant* parameters, gpointer user_data);
++  static void OnStartDone(GObject* source, GAsyncResult* result,
++                          gpointer user_data);
++  static void OnStartRequestResponseSignal(
++      GDBusConnection* bus, const gchar* sender_name, const gchar* object_path,
++      const gchar* interface_name, const gchar* signal_name,
++      GVariant* parameters, gpointer user_data);
++  static void OnGetPipesDone(GObject* source, GAsyncResult* result,
++                             gpointer user_data);
++};
++
++}  // namespace mozilla::extensions
++
++#endif  // mozilla_extensions_NativeMessagingPortal_h
+diff --git a/toolkit/components/extensions/components.conf b/toolkit/components/extensions/components.conf
+index 0b6461f13dd62..628adc096cc75 100644
 --- a/toolkit/components/extensions/components.conf
 +++ b/toolkit/components/extensions/components.conf
 @@ -14,3 +14,15 @@ Classes = [
@@ -864,9 +913,11 @@
 +            'headers': ['mozilla/extensions/NativeMessagingPortal.h'],
 +        },
 +    ]
+diff --git a/toolkit/components/extensions/moz.build b/toolkit/components/extensions/moz.build
+index a98846dac96d6..5bfe969114e4c 100644
 --- a/toolkit/components/extensions/moz.build
 +++ b/toolkit/components/extensions/moz.build
-@@ -77,6 +77,7 @@ XPIDL_SOURCES += [
+@@ -76,6 +76,7 @@ XPIDL_SOURCES += [
      "extIWebNavigation.idl",
      "mozIExtensionAPIRequestHandling.idl",
      "mozIExtensionProcessScript.idl",
@@ -874,7 +925,7 @@
  ]
  
  XPIDL_MODULE = "webextensions"
-@@ -103,6 +104,13 @@ UNIFIED_SOURCES += [
+@@ -102,6 +103,13 @@ UNIFIED_SOURCES += [
      "WebExtensionPolicy.cpp",
  ]
  
@@ -888,6 +939,9 @@
  XPCOM_MANIFESTS += [
      "components.conf",
  ]
+diff --git a/toolkit/components/extensions/nsINativeMessagingPortal.idl b/toolkit/components/extensions/nsINativeMessagingPortal.idl
+new file mode 100644
+index 0000000000000..30ae5f35bffba
 --- /dev/null
 +++ b/toolkit/components/extensions/nsINativeMessagingPortal.idl
 @@ -0,0 +1,71 @@
@@ -962,16 +1016,22 @@
 +  [implicit_jscontext]
 +  Promise start(in ACString aHandle, in ACString aName, in ACString aExtension);
 +};
---- a/toolkit/components/extensions/test/xpcshell/native_messaging.ini
-+++ b/toolkit/components/extensions/test/xpcshell/native_messaging.ini
-@@ -16,4 +16,7 @@ skip-if =
- [test_ext_native_messaging_perf.js]
- skip-if = tsan # Unreasonably slow, bug 1612707
-   os == "win" && os_version == "6.1" # Skip on Azure - frequent failure
-+[test_ext_native_messaging_portal.js]
-+run-if = (os == 'linux' && toolkit == 'gtk' && dbus_enabled)
-+tags = portal
- [test_ext_native_messaging_unresponsive.js]
+diff --git a/toolkit/components/extensions/test/xpcshell/native_messaging.toml b/toolkit/components/extensions/test/xpcshell/native_messaging.toml
+index 21abf0cffb5e0..7a3cb76ac455b 100644
+--- a/toolkit/components/extensions/test/xpcshell/native_messaging.toml
++++ b/toolkit/components/extensions/test/xpcshell/native_messaging.toml
+@@ -16,4 +16,8 @@ run-sequentially = "very high failure rate in parallel"
+ ["test_ext_native_messaging_perf.js"]
+ skip-if = ["tsan"] # Unreasonably slow, bug 1612707
+ 
++["test_ext_native_messaging_portal.js"]
++run-if = ["os == 'linux'", "toolkit == 'gtk'", "dbus_enabled"]
++tags = "portal"
++
+ ["test_ext_native_messaging_unresponsive.js"]
+diff --git a/toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js b/toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js
+new file mode 100644
+index 0000000000000..a765deb07a6f9
 --- /dev/null
 +++ b/toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js
 @@ -0,0 +1,378 @@
@@ -1353,6 +1413,8 @@
 +
 +  await extension.unload();
 +});
+diff --git a/toolkit/modules/subprocess/Subprocess.sys.mjs b/toolkit/modules/subprocess/Subprocess.sys.mjs
+index f26fe50fc2439..63155eb80c4cd 100644
 --- a/toolkit/modules/subprocess/Subprocess.sys.mjs
 +++ b/toolkit/modules/subprocess/Subprocess.sys.mjs
 @@ -191,6 +191,19 @@ export var Subprocess = {
@@ -1375,6 +1437,8 @@
  };
  
  Object.assign(Subprocess, SubprocessConstants);
+diff --git a/toolkit/modules/subprocess/subprocess_common.sys.mjs b/toolkit/modules/subprocess/subprocess_common.sys.mjs
+index aa3a28fb7b1fd..1a863697c62a4 100644
 --- a/toolkit/modules/subprocess/subprocess_common.sys.mjs
 +++ b/toolkit/modules/subprocess/subprocess_common.sys.mjs
 @@ -581,13 +581,22 @@ export class BaseProcess {
@@ -1440,6 +1504,8 @@
      return this.exitPromise;
    }
  }
+diff --git a/toolkit/modules/subprocess/subprocess_unix.sys.mjs b/toolkit/modules/subprocess/subprocess_unix.sys.mjs
+index 59b5873af2c80..9496dc795366f 100644
 --- a/toolkit/modules/subprocess/subprocess_unix.sys.mjs
 +++ b/toolkit/modules/subprocess/subprocess_unix.sys.mjs
 @@ -198,6 +198,10 @@ var SubprocessUnix = {
@@ -1453,9 +1519,60 @@
  };
  
  export var SubprocessImpl = SubprocessUnix;
+diff --git a/toolkit/modules/subprocess/subprocess_unix.worker.js b/toolkit/modules/subprocess/subprocess_unix.worker.js
+index 85632d239824b..cf2de29a4cfc9 100644
+--- a/toolkit/modules/subprocess/subprocess_unix.worker.js
++++ b/toolkit/modules/subprocess/subprocess_unix.worker.js
+@@ -405,6 +405,22 @@ class Process extends BaseProcess {
+     }
+   }
+ 
++  /**
++   * Connect to an already running process that was spawned externally.
++   *
++   * @param {object} options
++            An object with a 'fds' attribute that's an array
++            of file descriptors (stdin, stdout and stderr).
++   */
++  connectRunning(options) {
++    this.pid = 0;
++    this.pipes = [];
++    this.pipes.push(new OutputPipe(this, unix.Fd(options.fds[0])));
++    this.pipes.push(new InputPipe(this, unix.Fd(options.fds[1])));
++    this.pipes.push(new InputPipe(this, unix.Fd(options.fds[2])));
++    // Not creating a poll fd here, because this process is managed externally.
++  }
++
+   /**
+    * Called when input is available on our sentinel file descriptor.
+    *
+@@ -457,7 +473,9 @@ class Process extends BaseProcess {
+       this.exitCode = unix.WEXITSTATUS(status.value);
+     }
+ 
+-    this.fd.dispose();
++    if (this.fd !== undefined) {
++      this.fd.dispose();
++    }
+     io.updatePollFds();
+     this.resolveExit(this.exitCode);
+     return this.exitCode;
+@@ -521,7 +539,9 @@ io = {
+     let handlers = [
+       this.signal,
+       ...this.pipes.values(),
+-      ...this.processes.values(),
++      // Filter out processes without a poll fd, because those are managed
++      // externally, not spawned by us.
++      ...Array.from(this.processes.values()).filter(p => p.fd !== undefined),
+     ];
+ 
+     handlers = handlers.filter(handler => handler.pollEvents);
+diff --git a/toolkit/modules/subprocess/subprocess_win.sys.mjs b/toolkit/modules/subprocess/subprocess_win.sys.mjs
+index baf86402357d5..5ff3531f194b0 100644
 --- a/toolkit/modules/subprocess/subprocess_win.sys.mjs
 +++ b/toolkit/modules/subprocess/subprocess_win.sys.mjs
-@@ -173,6 +173,12 @@ var SubprocessWin = {
+@@ -168,6 +168,12 @@ var SubprocessWin = {
      error.errorCode = SubprocessConstants.ERROR_BAD_EXECUTABLE;
      throw error;
    },
@@ -1468,6 +1585,25 @@
  };
  
  export var SubprocessImpl = SubprocessWin;
+diff --git a/toolkit/modules/subprocess/subprocess_win.worker.js b/toolkit/modules/subprocess/subprocess_win.worker.js
+index 22d3857f8cf39..78b31b47045d8 100644
+--- a/toolkit/modules/subprocess/subprocess_win.worker.js
++++ b/toolkit/modules/subprocess/subprocess_win.worker.js
+@@ -601,6 +601,12 @@ class Process extends BaseProcess {
+     libc.CloseHandle(procInfo.hThread);
+   }
+ 
++  connectRunning(options) {
++    // Not relevant (yet?) on Windows. This is currently used only on Unix
++    // for native messaging through the WebExtensions portal.
++    throw new Error("Not implemented");
++  }
++
+   /**
+    * Called when our process handle is signaled as active, meaning the process
+    * has exited.
+diff --git a/toolkit/modules/subprocess/subprocess_worker_common.js b/toolkit/modules/subprocess/subprocess_worker_common.js
+index b22480c0dd304..f8197773bc1a7 100644
 --- a/toolkit/modules/subprocess/subprocess_worker_common.js
 +++ b/toolkit/modules/subprocess/subprocess_worker_common.js
 @@ -59,7 +59,11 @@ class BaseProcess {
@@ -1529,71 +1665,11 @@
  };
  
  onmessage = event => {
---- a/toolkit/modules/subprocess/subprocess_worker_unix.js
-+++ b/toolkit/modules/subprocess/subprocess_worker_unix.js
-@@ -407,6 +407,22 @@ class Process extends BaseProcess {
-   }
- 
-   /**
-+   * Connect to an already running process that was spawned externally.
-+   *
-+   * @param {object} options
-+            An object with a 'fds' attribute that's an array
-+            of file descriptors (stdin, stdout and stderr).
-+   */
-+  connectRunning(options) {
-+    this.pid = 0;
-+    this.pipes = [];
-+    this.pipes.push(new OutputPipe(this, unix.Fd(options.fds[0])));
-+    this.pipes.push(new InputPipe(this, unix.Fd(options.fds[1])));
-+    this.pipes.push(new InputPipe(this, unix.Fd(options.fds[2])));
-+    // Not creating a poll fd here, because this process is managed externally.
-+  }
-+
-+  /**
-    * Called when input is available on our sentinel file descriptor.
-    *
-    * @see pollEvents
-@@ -458,7 +474,9 @@ class Process extends BaseProcess {
-       this.exitCode = unix.WEXITSTATUS(status.value);
-     }
- 
--    this.fd.dispose();
-+    if (this.fd !== undefined) {
-+      this.fd.dispose();
-+    }
-     io.updatePollFds();
-     this.resolveExit(this.exitCode);
-     return this.exitCode;
-@@ -522,7 +540,9 @@ io = {
-     let handlers = [
-       this.signal,
-       ...this.pipes.values(),
--      ...this.processes.values(),
-+      // Filter out processes without a poll fd, because those are managed
-+      // externally, not spawned by us.
-+      ...Array.from(this.processes.values()).filter(p => p.fd !== undefined),
-     ];
- 
-     handlers = handlers.filter(handler => handler.pollEvents);
---- a/toolkit/modules/subprocess/subprocess_worker_win.js
-+++ b/toolkit/modules/subprocess/subprocess_worker_win.js
-@@ -606,6 +606,12 @@ class Process extends BaseProcess {
-     libc.CloseHandle(procInfo.hThread);
-   }
- 
-+  connectRunning(options) {
-+    // Not relevant (yet?) on Windows. This is currently used only on Unix
-+    // for native messaging through the WebExtensions portal.
-+    throw new Error("Not implemented");
-+  }
-+
-   /**
-    * Called when our process handle is signaled as active, meaning the process
-    * has exited.
+diff --git a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js b/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
+index e71b6b5203783..554a6c3077106 100644
 --- a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
 +++ b/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
-@@ -853,6 +853,83 @@ add_task(async function test_bad_executa
+@@ -853,6 +853,83 @@ add_task(async function test_bad_executable() {
    );
  });
  
@@ -1677,19 +1753,11 @@
  add_task(async function test_cleanup() {
    let { getSubprocessImplForTest } = ChromeUtils.importESModule(
      "resource://gre/modules/Subprocess.sys.mjs"
---- a/widget/gtk/WidgetUtilsGtk.h
-+++ b/widget/gtk/WidgetUtilsGtk.h
-@@ -53,6 +53,7 @@ inline bool IsRunningUnderFlatpakOrSnap(
- enum class PortalKind {
-   FilePicker,
-   MimeHandler,
-+  NativeMessaging,
-   Settings,
-   Location,
-   OpenUri,
+diff --git a/widget/gtk/WidgetUtilsGtk.cpp b/widget/gtk/WidgetUtilsGtk.cpp
+index 1a78e5cb93e71..a9df376a0f680 100644
 --- a/widget/gtk/WidgetUtilsGtk.cpp
 +++ b/widget/gtk/WidgetUtilsGtk.cpp
-@@ -208,6 +208,8 @@ bool ShouldUsePortal(PortalKind aPortalK
+@@ -208,6 +208,8 @@ bool ShouldUsePortal(PortalKind aPortalKind) {
          // Mime portal breaks default browser handling, see bug 1516290.
          autoBehavior = IsRunningUnderFlatpakOrSnap();
          return StaticPrefs::widget_use_xdg_desktop_portal_mime_handler();
@@ -1698,3 +1766,18 @@
        case PortalKind::Settings:
          autoBehavior = true;
          return StaticPrefs::widget_use_xdg_desktop_portal_settings();
+diff --git a/widget/gtk/WidgetUtilsGtk.h b/widget/gtk/WidgetUtilsGtk.h
+index ffd7425ae5cb1..09d8275c585cf 100644
+--- a/widget/gtk/WidgetUtilsGtk.h
++++ b/widget/gtk/WidgetUtilsGtk.h
+@@ -54,6 +54,7 @@ inline bool IsRunningUnderFlatpakOrSnap() {
+ enum class PortalKind {
+   FilePicker,
+   MimeHandler,
++  NativeMessaging,
+   Settings,
+   Location,
+   OpenUri,
+-- 
+2.40.1
+
