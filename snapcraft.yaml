@@ -433,6 +433,8 @@ parts:
       if [ $BUILD_DBGSYMS = "true" ]; then
         cp obj-*/dist/firefox-*.crashreporter-symbols.zip $CRAFT_STAGE/debug-symbols/
       fi
+      # update the path to the vulkan drivers for the snap environment
+      sed -i 's#/usr/lib/#/snap/firefox/current/usr/lib/#' $CRAFT_PART_INSTALL/usr/share/vulkan/icd.d/*.json
     override-stage: |
       # Workaround for LP: #2016358: create mount points for the gnome
       # content interface, while a proper fix is implemented in snapd.
@@ -447,7 +449,9 @@ parts:
       - libpipewire-0.3-modules
       - libspa-0.2-modules
       - libspeechd2
+      - libvulkan1
       - libxt6
+      - mesa-vulkan-drivers
       - pipewire-bin
       - pipewire-pulse
     prime:
@@ -475,12 +479,15 @@ parts:
       - usr/lib/*/libspeechd.so.*
       - usr/lib/*/libssh.so.*
       - usr/lib/*/libssl.so.*
+      - usr/lib/*/libvulkan*
+      - usr/lib/*/libVkLayer*
       - usr/lib/*/libwind.so.*
       - usr/lib/*/libXt.so.*
       - usr/lib/*/pipewire-*
       - usr/lib/*/spa-*
       - usr/share/alsa
       - usr/share/pipewire
+      - usr/share/vulkan
       # Workaround for LP: #2016358 (see the 'override-stage' above).
       - gnome-platform
       - data-dir/icons
