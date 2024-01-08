@@ -1,7 +1,7 @@
 diff --git a/modules/libpref/init/StaticPrefList.yaml b/modules/libpref/init/StaticPrefList.yaml
 --- a/modules/libpref/init/StaticPrefList.yaml
 +++ b/modules/libpref/init/StaticPrefList.yaml
-@@ -15624,6 +15624,16 @@
+@@ -15734,6 +15734,16 @@
    value: 2
    mirror: always
  
@@ -158,7 +158,7 @@ diff --git a/toolkit/components/extensions/NativeMessaging.sys.mjs b/toolkit/com
  /* vim: set sts=2 sw=2 et tw=80: */
  /* This Source Code Form is subject to the terms of the Mozilla Public
   * License, v. 2.0. If a copy of the MPL was not distributed with this
-@@ -19,6 +19,13 @@ ChromeUtils.defineESModuleGetters(lazy, 
+@@ -19,6 +19,13 @@ ChromeUtils.defineESModuleGetters(lazy, {
  
  const { ExtensionError, promiseTimeout } = ExtensionUtils;
  
@@ -172,10 +172,10 @@ diff --git a/toolkit/components/extensions/NativeMessaging.sys.mjs b/toolkit/com
  // For a graceful shutdown (i.e., when the extension is unloaded or when it
  // explicitly calls disconnect() on a native port), how long we give the native
  // application to exit before we start trying to kill it.  (in milliseconds)
-@@ -41,6 +48,12 @@ const PREF_MAX_WRITE =
-   "webextensions.native-messaging.max-output-message-bytes";
+@@ -49,6 +56,12 @@ XPCOMUtils.defineLazyPreferenceGetter(
+ );
  
- export var NativeApp = class extends EventEmitter {
+ export class NativeApp extends EventEmitter {
 +  _throwGenericError(application) {
 +    // Report a generic error to not leak information about whether a native
 +    // application is installed to addons that do not have the right permission.
@@ -185,7 +185,7 @@ diff --git a/toolkit/components/extensions/NativeMessaging.sys.mjs b/toolkit/com
    /**
     * @param {BaseContext} context The context that initiated the native app.
     * @param {string} application The identifier of the native app.
-@@ -59,6 +72,18 @@ export var NativeApp = class extends Eve
+@@ -67,6 +80,18 @@ export class NativeApp extends EventEmitter {
      this.sendQueue = [];
      this.writePromise = null;
      this.cleanupStarted = false;
@@ -204,7 +204,7 @@ diff --git a/toolkit/components/extensions/NativeMessaging.sys.mjs b/toolkit/com
  
      this.startupPromise = lazy.NativeManifests.lookupManifest(
        "stdio",
-@@ -66,10 +91,8 @@ export var NativeApp = class extends Eve
+@@ -74,10 +99,8 @@ export class NativeApp extends EventEmitter {
        context
      )
        .then(hostInfo => {
@@ -216,7 +216,7 @@ diff --git a/toolkit/components/extensions/NativeMessaging.sys.mjs b/toolkit/com
          }
  
          let command = hostInfo.manifest.path;
-@@ -117,6 +140,67 @@ export var NativeApp = class extends Eve
+@@ -125,6 +148,67 @@ export class NativeApp extends EventEmitter {
        });
    }
  
@@ -284,7 +284,7 @@ diff --git a/toolkit/components/extensions/NativeMessaging.sys.mjs b/toolkit/com
    /**
     * Open a connection to a native messaging host.
     *
-@@ -293,6 +377,21 @@ export var NativeApp = class extends Eve
+@@ -301,6 +385,21 @@ export class NativeApp extends EventEmitter {
  
      await this.startupPromise;
  
@@ -1277,7 +1277,7 @@ new file mode 100644
 diff --git a/toolkit/components/extensions/test/xpcshell/native_messaging.toml b/toolkit/components/extensions/test/xpcshell/native_messaging.toml
 --- a/toolkit/components/extensions/test/xpcshell/native_messaging.toml
 +++ b/toolkit/components/extensions/test/xpcshell/native_messaging.toml
-@@ -16,4 +16,8 @@ run-sequentially = "very high failure ra
+@@ -16,4 +16,8 @@ run-sequentially = "very high failure rate in parallel"
  ["test_ext_native_messaging_perf.js"]
  skip-if = ["tsan"] # Unreasonably slow, bug 1612707
  
@@ -1898,10 +1898,11 @@ diff --git a/toolkit/modules/subprocess/subprocess_unix.sys.mjs b/toolkit/module
 diff --git a/toolkit/modules/subprocess/subprocess_unix.worker.js b/toolkit/modules/subprocess/subprocess_unix.worker.js
 --- a/toolkit/modules/subprocess/subprocess_unix.worker.js
 +++ b/toolkit/modules/subprocess/subprocess_unix.worker.js
-@@ -406,6 +406,22 @@ class Process extends BaseProcess {
+@@ -405,6 +405,22 @@ class Process extends BaseProcess {
+     }
    }
  
-   /**
++  /**
 +   * Connect to an already running process that was spawned externally.
 +   *
 +   * @param {object} options
@@ -1917,10 +1918,9 @@ diff --git a/toolkit/modules/subprocess/subprocess_unix.worker.js b/toolkit/modu
 +    // Not creating a poll fd here, because this process is managed externally.
 +  }
 +
-+  /**
+   /**
     * Called when input is available on our sentinel file descriptor.
     *
-    * @see pollEvents
 @@ -457,7 +473,9 @@ class Process extends BaseProcess {
        this.exitCode = unix.WEXITSTATUS(status.value);
      }
@@ -2040,7 +2040,7 @@ diff --git a/toolkit/modules/subprocess/subprocess_worker_common.js b/toolkit/mo
 diff --git a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js b/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
 --- a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
 +++ b/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
-@@ -853,6 +853,83 @@ add_task(async function test_bad_executa
+@@ -853,6 +853,83 @@ add_task(async function test_bad_executable() {
    );
  });
  
@@ -2127,7 +2127,7 @@ diff --git a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js b/toolk
 diff --git a/widget/gtk/WidgetUtilsGtk.cpp b/widget/gtk/WidgetUtilsGtk.cpp
 --- a/widget/gtk/WidgetUtilsGtk.cpp
 +++ b/widget/gtk/WidgetUtilsGtk.cpp
-@@ -208,6 +208,8 @@ bool ShouldUsePortal(PortalKind aPortalK
+@@ -208,6 +208,8 @@ bool ShouldUsePortal(PortalKind aPortalKind) {
          // Mime portal breaks default browser handling, see bug 1516290.
          autoBehavior = IsRunningUnderFlatpakOrSnap();
          return StaticPrefs::widget_use_xdg_desktop_portal_mime_handler();
@@ -2139,7 +2139,7 @@ diff --git a/widget/gtk/WidgetUtilsGtk.cpp b/widget/gtk/WidgetUtilsGtk.cpp
 diff --git a/widget/gtk/WidgetUtilsGtk.h b/widget/gtk/WidgetUtilsGtk.h
 --- a/widget/gtk/WidgetUtilsGtk.h
 +++ b/widget/gtk/WidgetUtilsGtk.h
-@@ -54,6 +54,7 @@ inline bool IsRunningUnderFlatpakOrSnap(
+@@ -54,6 +54,7 @@ inline bool IsRunningUnderFlatpakOrSnap() {
  enum class PortalKind {
    FilePicker,
    MimeHandler,
