@@ -371,6 +371,7 @@ parts:
       if [ $CRAFT_TARGET_ARCH != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
       fi
+      echo "ac_add_options --prefix=$CRAFT_PART_INSTALL/usr" >> $MOZCONFIG
     override-build: |
       craftctl default
       export PATH=$HOME/.cargo/bin:$PATH
@@ -404,8 +405,6 @@ parts:
         export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/instrumented/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       fi
       MACH="/usr/bin/python3 ./mach"
-      $MACH configure --prefix=$CRAFT_PART_INSTALL/usr
-      $MACH uniffi generate # workaround for https://bugzilla.mozilla.org/1797714
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
         xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build --verbose -j$CRAFT_PARALLEL_BUILD_COUNT
