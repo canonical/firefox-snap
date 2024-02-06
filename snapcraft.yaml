@@ -334,7 +334,6 @@ parts:
       wget -O - $ROOT/source/firefox-$VERSION.source.tar.xz | tar -x --xz --strip-components=1
       mkdir -p $CRAFT_STAGE/debug-symbols
       cp toolkit/crashreporter/tools/upload_symbols.py $CRAFT_STAGE/debug-symbols/
-      echo "ac_add_options --prefix=$CRAFT_PART_INSTALL/usr" >> $MOZCONFIG
     override-build: |
       craftctl default
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
@@ -374,6 +373,7 @@ parts:
       if [ $CRAFT_TARGET_ARCH != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
       fi
+      echo "ac_add_options --prefix=$CRAFT_PART_INSTALL/usr" >> $MOZCONFIG
       GNOME_SDK_SNAP=/snap/gnome-42-2204-sdk/current
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # "clang -dumpmachine" returns "x86_64-unknown-linux-gnu" on
