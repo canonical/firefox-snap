@@ -1,6 +1,6 @@
-From a4ffecce6b7d47f32768919068714ab988895d26 Mon Sep 17 00:00:00 2001
-From: Alexandre Lissy <lissyx+mozillians@lissyx.dyndns.org>
-Date: Fri, 8 Dec 2023 16:22:48 +0100
+From 1bbaeb5baa715290a3bb981169e6d56bc02afb1e Mon Sep 17 00:00:00 2001
+From: Amin Bandali <bandali@canonical.com>
+Date: Mon, 12 Feb 2024 21:53:54 -0500
 Subject: [PATCH] NativeMessaging patch from Snap nightly
 
 ---
@@ -32,10 +32,10 @@ Subject: [PATCH] NativeMessaging patch from Snap nightly
  create mode 100644 toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js
 
 diff --git a/modules/libpref/init/StaticPrefList.yaml b/modules/libpref/init/StaticPrefList.yaml
-index 7706151a62c31..3da2f26d0438c 100644
+index 8ba1d8b35b6d1..7eb6701c58040 100644
 --- a/modules/libpref/init/StaticPrefList.yaml
 +++ b/modules/libpref/init/StaticPrefList.yaml
-@@ -15656,6 +15656,16 @@
+@@ -15666,6 +15666,16 @@
    value: 2
    mirror: always
  
@@ -67,7 +67,7 @@ index b640c5f1d0f31..4d98af5f32051 100644
  
  
 diff --git a/testing/mozharness/configs/unittests/linux_unittest.py b/testing/mozharness/configs/unittests/linux_unittest.py
-index e73a569d5e060..e65bc8e0cbffa 100644
+index 801f57eb14f9e..977cfbe4068c4 100644
 --- a/testing/mozharness/configs/unittests/linux_unittest.py
 +++ b/testing/mozharness/configs/unittests/linux_unittest.py
 @@ -34,7 +34,12 @@ else:
@@ -85,7 +85,7 @@ index e73a569d5e060..e65bc8e0cbffa 100644
      "binary_path": BINARY_PATH,
      "xpcshell_name": XPCSHELL_NAME,
 diff --git a/toolkit/components/extensions/NativeMessaging.sys.mjs b/toolkit/components/extensions/NativeMessaging.sys.mjs
-index 20924f169d3a7..243a336751e29 100644
+index dcd8fe7807892..23398fc4c7fb0 100644
 --- a/toolkit/components/extensions/NativeMessaging.sys.mjs
 +++ b/toolkit/components/extensions/NativeMessaging.sys.mjs
 @@ -19,6 +19,13 @@ ChromeUtils.defineESModuleGetters(lazy, {
@@ -102,7 +102,7 @@ index 20924f169d3a7..243a336751e29 100644
  // For a graceful shutdown (i.e., when the extension is unloaded or when it
  // explicitly calls disconnect() on a native port), how long we give the native
  // application to exit before we start trying to kill it.  (in milliseconds)
-@@ -59,6 +66,14 @@ export var NativeApp = class extends EventEmitter {
+@@ -67,6 +74,14 @@ export class NativeApp extends EventEmitter {
      this.sendQueue = [];
      this.writePromise = null;
      this.cleanupStarted = false;
@@ -117,7 +117,7 @@ index 20924f169d3a7..243a336751e29 100644
  
      this.startupPromise = lazy.NativeManifests.lookupManifest(
        "stdio",
-@@ -117,6 +132,54 @@ export var NativeApp = class extends EventEmitter {
+@@ -125,6 +140,54 @@ export class NativeApp extends EventEmitter {
        });
    }
  
@@ -172,7 +172,7 @@ index 20924f169d3a7..243a336751e29 100644
    /**
     * Open a connection to a native messaging host.
     *
-@@ -293,6 +356,15 @@ export var NativeApp = class extends EventEmitter {
+@@ -301,6 +364,15 @@ export class NativeApp extends EventEmitter {
  
      await this.startupPromise;
  
@@ -914,7 +914,7 @@ index 0b6461f13dd62..628adc096cc75 100644
 +        },
 +    ]
 diff --git a/toolkit/components/extensions/moz.build b/toolkit/components/extensions/moz.build
-index a98846dac96d6..5bfe969114e4c 100644
+index 9f22293d6de6d..bdfc9a41e1496 100644
 --- a/toolkit/components/extensions/moz.build
 +++ b/toolkit/components/extensions/moz.build
 @@ -76,6 +76,7 @@ XPIDL_SOURCES += [
@@ -1779,5 +1779,5 @@ index ffd7425ae5cb1..09d8275c585cf 100644
    Location,
    OpenUri,
 -- 
-2.40.1
+2.43.0
 
