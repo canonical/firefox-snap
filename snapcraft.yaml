@@ -365,6 +365,7 @@ parts:
       if [ $CRAFT_TARGET_ARCH != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
       fi
+      echo "ac_add_options --prefix=$CRAFT_PART_INSTALL/usr" >> $MOZCONFIG
       GNOME_SDK_SNAP=/snap/gnome-42-2204-sdk/current
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # "clang -dumpmachine" returns "x86_64-unknown-linux-gnu" on
@@ -388,8 +389,6 @@ parts:
         export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/instrumented/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       fi
       MACH="/usr/bin/python3 ./mach"
-      $MACH configure --prefix=$CRAFT_PART_INSTALL/usr
-      $MACH uniffi generate # workaround for https://bugzilla.mozilla.org/1797714
       # Unset SNAP_INSTANCE_NAME because when snapcraft runs as a snap it is set
       # (and its value is "snapcraft"), and this interferes with firefox's
       # detection of whether it's running sandboxed (see
