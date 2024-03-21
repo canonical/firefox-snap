@@ -1,4 +1,6 @@
 #!/bin/sh
 
 mkdir -p $SNAP_COMMON/host-hunspell
-snapctl mount --persistent -o ro,bind,noatime,noexec /usr/share/hunspell $SNAP_COMMON/host-hunspell
+if [ -d "/usr/share/hunspell" ]; then
+  snapctl mount --persistent -o ro,bind,noatime,noexec /usr/share/hunspell $SNAP_COMMON/host-hunspell
+fi
