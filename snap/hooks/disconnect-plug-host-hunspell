@@ -1,3 +1,0 @@
-#!/bin/sh
-
-snapctl umount $SNAP_COMMON/host-hunspell || true
