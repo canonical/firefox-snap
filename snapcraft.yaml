@@ -50,7 +50,7 @@ apps:
       - gsettings
       - hardware-observe
       - home
-      - host-hunspell
+      - host-usr-share-hunspell
       - joystick
       - network
       - network-observe
@@ -77,7 +77,7 @@ apps:
       - gsettings
       - hardware-observe
       - home
-      - host-hunspell
+      - host-usr-share-hunspell
       - joystick
       - network
       - network-observe
@@ -102,7 +102,7 @@ plugs:
   etc-firefox:
     interface: system-files
     read: [/etc/firefox]
-  host-hunspell:
+  host-usr-share-hunspell:
     interface: system-files
     read:
     - /var/lib/snapd/hostfs/usr/share/hunspell
