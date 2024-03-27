@@ -30,7 +30,7 @@ apps:
     desktop: firefox.desktop
     extensions: [gnome]
     environment:
-      DICPATH: "$SNAP_COMMON/snap-hunspell"
+      DICPATH: "/var/lib/snapd/hostfs/usr/share/hunspell"
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: "$SNAP/usr/share/pipewire/pipewire.conf"
@@ -104,12 +104,9 @@ plugs:
     interface: system-files
     read: [/etc/firefox]
   host-hunspell:
-    interface: mount-control
-    mount:
-    - what: /usr/share/hunspell
-      where: $SNAP_COMMON/host-hunspell
-      persistent: true
-      options: [ro, bind, noatime, noexec]
+    interface: system-files
+    read:
+    - /var/lib/snapd/hostfs/usr/share/hunspell
 
 layout:
   /usr/share/libdrm:
