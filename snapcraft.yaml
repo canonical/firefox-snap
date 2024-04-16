@@ -51,6 +51,7 @@ apps:
       - gsettings
       - hardware-observe
       - home
+      - host-hunspell
       - host-usr-share-hunspell
       - joystick
       - login-session-observe
@@ -79,6 +80,7 @@ apps:
       - gsettings
       - hardware-observe
       - home
+      - host-hunspell
       - host-usr-share-hunspell
       - joystick
       - login-session-observe
@@ -105,6 +107,13 @@ plugs:
   etc-firefox:
     interface: system-files
     read: [/etc/firefox]
+  host-hunspell:
+    interface: mount-control
+    mount:
+    - what: /usr/share/hunspell
+      where: $SNAP_COMMON/host-hunspell
+      persistent: true
+      options: [ro, bind, noatime, noexec]
   host-usr-share-hunspell:
     interface: system-files
     read:
