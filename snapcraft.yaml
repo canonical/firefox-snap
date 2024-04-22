@@ -191,7 +191,7 @@ parts:
       if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
         ROOT=https://ftp.mozilla.org/pub/firefox/nightly/latest-mozilla-central
         REVISION=$(wget -O - $ROOT/firefox-$(craftctl get version).en-US.linux-x86_64.txt | tail -1 | sed -n "s#^.*\/rev/\(.*\)\$#\1#p")
-        FETCHES=https://hg.mozilla.org/mozilla-central/raw-file/${REVISION}/taskcluster/ci/fetch/toolchains.yml
+        FETCHES=https://hg.mozilla.org/mozilla-central/raw-file/${REVISION}/taskcluster/kinds/fetch/toolchains.yml
         TOOLCHAINS=$(curl -sSL "${FETCHES}")
         unset PYTHONPATH
         REPO=$(echo "${TOOLCHAINS}" | /usr/bin/python3 -c 'import yaml, sys; fetches = yaml.safe_load(sys.stdin); print("{}".format(fetches["dump-syms"]["fetch"]["repo"]))')
