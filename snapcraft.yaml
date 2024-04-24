@@ -29,7 +29,9 @@ apps:
     desktop: firefox.desktop
     extensions: [gnome]
     environment:
-      DICPATH: "/var/lib/snapd/hostfs/usr/share/hunspell"
+      # See below and also the 'snap/hooks/post-refresh' file for
+      # more details about our hunspell setup.
+      DICPATH: "$SNAP_COMMON/snap-hunspell"
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: "$SNAP/usr/share/pipewire/pipewire.conf"
