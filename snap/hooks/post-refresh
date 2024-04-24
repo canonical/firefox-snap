@@ -14,6 +14,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+if [ -d $SNAP_COMMON/host-hunspell ]; then
+    # Clean up old Firefox snap mount for host hunspell; we now use
+    # the system-files interface for host hunspell dictionaries.
+    # See the 'disconnect-plug-host-hunspell' hook for more details.
+    snapctl umount $SNAP_COMMON/host-hunspell || true
+    rm -r $SNAP_COMMON/host-hunspell || true
+    exit 0
+fi
+
 host_hunspell=/var/lib/snapd/hostfs/usr/share/hunspell
 
 if [ ! -d  $host_hunspell ]; then
