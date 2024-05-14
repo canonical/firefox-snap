@@ -214,7 +214,7 @@ parts:
         FFINFO=$(curl -s https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD/linux-x86_64/en-US/firefox-$VERSION.json)
         MOZ_SOURCE_REPO=$(echo $FFINFO | jq -r .moz_source_repo)
         MOZ_SOURCE_STAMP=$(echo $FFINFO | jq -r .moz_source_stamp)
-        FETCHES=$MOZ_SOURCE_REPO/raw-file/$MOZ_SOURCE_STAMP/taskcluster/ci/fetch/toolchains.yml
+        FETCHES=$MOZ_SOURCE_REPO/raw-file/$MOZ_SOURCE_STAMP/taskcluster/kinds/fetch/toolchains.yml
         TOOLCHAINS=$(curl -sSL "${FETCHES}")
         unset PYTHONPATH
         REPO=$(echo "${TOOLCHAINS}" | /usr/bin/python3 -c 'import yaml, sys; fetches = yaml.safe_load(sys.stdin); print("{}".format(fetches["dump-syms"]["fetch"]["repo"]))')
