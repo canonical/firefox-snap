@@ -605,4 +605,4 @@ slots:
   dbus-daemon:
     interface: dbus
     bus: session
-    name: org.mozilla.firefox_beta
+    name: org.mozilla.firefox
