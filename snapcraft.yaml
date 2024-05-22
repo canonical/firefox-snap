@@ -615,4 +615,4 @@ slots:
   dbus-daemon:
     interface: dbus
     bus: session
-    name: org.mozilla.firefox_nightly
+    name: org.mozilla.firefox
