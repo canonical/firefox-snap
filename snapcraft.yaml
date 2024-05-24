@@ -39,6 +39,7 @@ apps:
       PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/pipewire-0.3"
       SPA_PLUGIN_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/spa-0.2"
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
+      MOZ_DBUS_APP_NAME: "firefox_nightly"
     slots:
       - dbus-daemon
       - mpris
