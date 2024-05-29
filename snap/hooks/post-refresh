@@ -20,7 +20,6 @@ if [ -d $SNAP_COMMON/host-hunspell ]; then
     # See the 'disconnect-plug-host-hunspell' hook for more details.
     snapctl umount $SNAP_COMMON/host-hunspell || true
     rm -r $SNAP_COMMON/host-hunspell || true
-    exit 0
 fi
 
 host_hunspell=/var/lib/snapd/hostfs/usr/share/hunspell
@@ -35,7 +34,7 @@ DICPATH=$SNAP_COMMON/snap-hunspell
 if [ -d $DICPATH ]; then
     # Clean up on each refresh to ensure we have an up-to-date list
     # of host dictionaries.
-    find $DICPATH -type l -name "*.dic" -or -name "*.aff" | xargs rm
+    find $DICPATH -type l -name "*.dic" -or -name "*.aff" | xargs rm || true
 else
     mkdir -p $DICPATH
 fi
