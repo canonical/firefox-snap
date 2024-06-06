@@ -57,6 +57,7 @@ apps:
       - host-hunspell
       - host-usr-share-hunspell
       - joystick
+      - login-session-observe
       - network
       - network-observe
       - opengl
@@ -85,6 +86,7 @@ apps:
       - host-hunspell
       - host-usr-share-hunspell
       - joystick
+      - login-session-observe
       - network
       - network-observe
       - opengl
