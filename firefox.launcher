@@ -19,37 +19,50 @@
 # This requires the personal-files plug to be connected.
 # This is a stopgap measure until proper profile migration is implemented
 # in firefox (see https://bugzilla.mozilla.org/1730530).
-DOTMOZILLA="$SNAP_USER_COMMON/.mozilla"
+
+export XDG_CONFIG_HOME="$SNAP_USER_COMMON/.config"
+
+DOTMOZILLA="$XDG_CONFIG_HOME/.mozilla"
 if [ ! -d "$DOTMOZILLA" ]; then
-  FIREFOX_CONFIG="$SNAP_REAL_HOME/.mozilla/firefox"
-  cat "$FIREFOX_CONFIG/profiles.ini" >/dev/null 2>&1
-  if [ "$?" -eq "0" ]; then
-    SIZE=$(du -sb $FIREFOX_CONFIG | cut -f 1)
-    AVAILABLE_BLOCKS=$(stat -f -c %a $SNAP_USER_COMMON)
-    BLOCK_SIZE=$(stat -f -c %s $SNAP_USER_COMMON)
-    AVAILABLE_SIZE=$(($AVAILABLE_BLOCKS*$BLOCK_SIZE))
-    if [ $AVAILABLE_SIZE -gt $SIZE ]; then
-      printf "Importing existing firefox profiles from $FIREFOX_CONFIG\n"
-      TS1=$(date +%s.%3N)
-      mkdir -p "$DOTMOZILLA"
-      cp -R "$FIREFOX_CONFIG" "$DOTMOZILLA/"
-      # Search and replace absolute file paths in plain-text config files.
-      for FILENAME in "pkcs11.txt" "extensions.json"; do
-        find "$DOTMOZILLA/firefox" -name "$FILENAME" \
-            -exec sed -i "s#$FIREFOX_CONFIG#$DOTMOZILLA/firefox#g" {} \;
-      done
-      # Patch the imported profiles to set the default one for use by the snap
-      # (legacy mode, no dedicated profiles).
-      $SNAP/patch-default-profile.py "$DOTMOZILLA/firefox/profiles.ini"
-      TS2=$(date +%s.%3N)
-      T=$(printf "$TS1 $TS2" | awk '{printf "%.3f",$2-$1}')
-      printf "Import done in $T s\n"
-    else
-      printf "Not importing existing firefox profiles from $FIREFOX_CONFIG "
-      printf "because there is not enough available space in $SNAP_USER_COMMON "
-      printf "(required: $SIZE bytes / available: $AVAILABLE_SIZE bytes)\n"
+  # TODO:
+  #  - Properly handle outside-of-snap $XDG_CONFIG_HOME values
+  #
+  # This will poll for either ~/.mozilla or ~/.config/mozilla and import
+  # into XDG-compatible setup.
+  # TODO: Is this OK???
+  #       Technically the original import into Snap is already doing a similar
+  #       thing so ...
+  for FIREFOX_CONFIG in "$SNAP_REAL_HOME/.mozilla/firefox" "$SNAP_REAL_HOME/.config/mozilla/firefox"; do
+    #FIREFOX_CONFIG="$SNAP_REAL_HOME/.mozilla/firefox"
+    cat "$FIREFOX_CONFIG/profiles.ini" >/dev/null 2>&1
+    if [ "$?" -eq "0" ]; then
+      SIZE=$(du -sb $FIREFOX_CONFIG | cut -f 1)
+      AVAILABLE_BLOCKS=$(stat -f -c %a $SNAP_USER_COMMON)
+      BLOCK_SIZE=$(stat -f -c %s $SNAP_USER_COMMON)
+      AVAILABLE_SIZE=$(($AVAILABLE_BLOCKS*$BLOCK_SIZE))
+      if [ $AVAILABLE_SIZE -gt $SIZE ]; then
+        printf "Importing existing firefox profiles from $FIREFOX_CONFIG\n"
+        TS1=$(date +%s.%3N)
+        mkdir -p "$DOTMOZILLA"
+        cp -R "$FIREFOX_CONFIG" "$DOTMOZILLA/"
+        # Search and replace absolute file paths in plain-text config files.
+        for FILENAME in "pkcs11.txt" "extensions.json"; do
+          find "$DOTMOZILLA/firefox" -name "$FILENAME" \
+              -exec sed -i "s#$FIREFOX_CONFIG#$DOTMOZILLA/firefox#g" {} \;
+        done
+        # Patch the imported profiles to set the default one for use by the snap
+        # (legacy mode, no dedicated profiles).
+        $SNAP/patch-default-profile.py "$DOTMOZILLA/firefox/profiles.ini"
+        TS2=$(date +%s.%3N)
+        T=$(printf "$TS1 $TS2" | awk '{printf "%.3f",$2-$1}')
+        printf "Import done in $T s\n"
+      else
+        printf "Not importing existing firefox profiles from $FIREFOX_CONFIG "
+        printf "because there is not enough available space in $SNAP_USER_COMMON "
+        printf "(required: $SIZE bytes / available: $AVAILABLE_SIZE bytes)\n"
+      fi
     fi
-  fi
+  done;
 fi
 
 exec "$SNAP/usr/lib/firefox/firefox" "$@"
