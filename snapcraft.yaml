@@ -13,7 +13,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 name: firefox
-version: "115.13.0esr-3"
+version: "128.0esr-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -36,10 +36,12 @@ apps:
       PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/pipewire-0.3"
       SPA_PLUGIN_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/spa-0.2"
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
+      MOZ_DBUS_APP_NAME: "firefox_esr"
     slots:
       - dbus-daemon
       - mpris
     plugs:
+      - alsa
       - audio-playback
       - audio-record
       - avahi-observe
@@ -51,6 +53,7 @@ apps:
       - home
       - host-hunspell
       - joystick
+      - login-session-observe
       - network
       - network-observe
       - opengl
@@ -78,6 +81,7 @@ apps:
       - home
       - host-hunspell
       - joystick
+      - login-session-observe
       - network
       - network-observe
       - opengl
@@ -112,6 +116,8 @@ plugs:
 layout:
   /usr/share/libdrm:
     bind: $SNAP/gnome-platform/usr/share/libdrm
+  /usr/share/alsa:
+    bind: $SNAP/usr/share/alsa
 
 parts:
   rust:
@@ -120,7 +126,7 @@ parts:
       - wget
     override-pull: |
       # Do not use rustup to work around https://forum.snapcraft.io/t/armhf-builds-on-launchpad-timing-out/31008
-      REQUIRED_RUST_VERSION=1.66.0
+      REQUIRED_RUST_VERSION=1.76.0
       ROOT=https://static.rust-lang.org/dist/rust-$REQUIRED_RUST_VERSION
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         BINARIES_SUFFIX=x86_64-unknown-linux-gnu
@@ -198,11 +204,11 @@ parts:
     override-pull: |
       if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
         VERSION=$(craftctl get version | cut -d- -f1)
-        BUILD=$(craftctl get version | cut -d- -f2)
+        BUILD=$(craftctl get version | cut -d- -f2 | cut -d. -f1)
         FFINFO=$(curl -s https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD/linux-x86_64/en-US/firefox-$VERSION.json)
         MOZ_SOURCE_REPO=$(echo $FFINFO | jq -r .moz_source_repo)
         MOZ_SOURCE_STAMP=$(echo $FFINFO | jq -r .moz_source_stamp)
-        FETCHES=$MOZ_SOURCE_REPO/raw-file/$MOZ_SOURCE_STAMP/taskcluster/ci/fetch/toolchains.yml
+        FETCHES=$MOZ_SOURCE_REPO/raw-file/$MOZ_SOURCE_STAMP/taskcluster/kinds/fetch/toolchains.yml
         TOOLCHAINS=$(curl -sSL "${FETCHES}")
         unset PYTHONPATH
         REPO=$(echo "${TOOLCHAINS}" | /usr/bin/python3 -c 'import yaml, sys; fetches = yaml.safe_load(sys.stdin); print("{}".format(fetches["dump-syms"]["fetch"]["repo"]))')
@@ -323,7 +329,7 @@ parts:
       - zip
     override-pull: |
       VERSION=$(craftctl get version | cut -d- -f1)
-      BUILD=$(craftctl get version | cut -d- -f2)
+      BUILD=$(craftctl get version | cut -d- -f2 | cut -d. -f1)
       ROOT=https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD
       wget -O - $ROOT/source/firefox-$VERSION.source.tar.xz | tar -x --xz --strip-components=1
       mkdir -p $CRAFT_STAGE/debug-symbols
@@ -339,14 +345,17 @@ parts:
         # patches/mozilla-reduce-rust-debuginfo.patch applied,
         # at least as of 2023-06-25.
         BUILD_DBGSYMS=true
-        # GitHub Actions is limited to 2 CPUs and 7GB RAM, and
-        # too much debug info from Rust will make gkrust linkage fail.
-        # Same goes for arm64 builds on Launchpad.  It seems we can't
-        # detect $GITHUB_WORKSPACE, so we assume presence of the file
-        # "symbols-upload-token" means we are running on GitHub.
-        if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token"] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
-          patch -p1 < $CRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
-        fi
+      fi
+      # GitHub Actions is limited to 2 CPUs and 7GB RAM, and
+      # too much debug info from Rust will make gkrust linkage fail.
+      # Same goes for arm64 builds on Launchpad.  It seems we can't
+      # detect $GITHUB_WORKSPACE, so we assume presence of the file
+      # "symbols-upload-token" means we are running on GitHub.
+      if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token"] || [ $CRAFT_TARGET_ARCH = "arm64" ] || [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+        patch -p1 < $CRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
+      fi
+      if [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+        patch -p1 < $CRAFT_PROJECT_DIR/patches/armhf-thin-lto.patch
       fi
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       if [ $BUILD_DBGSYMS = "true" ]; then
@@ -358,8 +367,7 @@ parts:
         # Enable LTO and PGO (https://firefox-source-docs.mozilla.org/build/buildsystem/pgo.html) only on amd64 for now.
         # Linking with gold fails on armhf (error: undefined reference to '__aeabi_uldivmod') and would need to be
         # investigated further, and running PGO on arm64 takes forever (> 4 days in the Launchpad build environment!).
-        echo "ac_add_options --enable-linker=gold" >> $MOZCONFIG
-        echo "ac_add_options --enable-lto=cross" >> $MOZCONFIG
+        echo "ac_add_options --enable-linker=lld" >> $MOZCONFIG
         echo "ac_add_options MOZ_PGO=1" >> $MOZCONFIG
       fi
       if [ $CRAFT_TARGET_ARCH != "armhf" ]; then
@@ -389,22 +397,6 @@ parts:
         export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/instrumented/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       fi
       MACH="/usr/bin/python3 ./mach"
-      # Unset SNAP_INSTANCE_NAME because when snapcraft runs as a snap it is set
-      # (and its value is "snapcraft"), and this interferes with firefox's
-      # detection of whether it's running sandboxed (see
-      # https://searchfox.org/mozilla-central/search?q=IsRunningUnderSnap()).
-      # That codes is compiled in the xpcshell binary that's used to generate
-      # files at build time, and the environment it runs in prevents it from
-      # locating services it needs, causing a crash (see
-      # https://searchfox.org/mozilla-central/rev/aa329cf7506ddd966542e642ec00223fd7461599/xpcom/io/SpecialSystemDirectory.cpp#196).
-      # This is a temporary workaround to get builds going again, we really need
-      # to get to the bottom of this and understand why xpcshell cannot find the
-      # appinfo service when run in the build environment.
-      # Unsetting SNAP_INSTANCE_NAME has the undesirable side-effect that when
-      # generating a profile for PGO-enabled builds, a potentially different
-      # code path will be exercised (not confined as a snap), so that's not a
-      # good solution.
-      unset SNAP_INSTANCE_NAME
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
         xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build -j$CRAFT_PARALLEL_BUILD_COUNT
@@ -424,6 +416,8 @@ parts:
       if [ $BUILD_DBGSYMS = "true" ]; then
         cp obj-*/dist/firefox-*.crashreporter-symbols.zip $CRAFT_STAGE/debug-symbols/
       fi
+      # update the path to the vulkan drivers for the snap environment
+      sed -i 's#/usr/lib/#/snap/firefox/current/usr/lib/#' $CRAFT_PART_INSTALL/usr/share/vulkan/icd.d/*.json
     override-stage: |
       # Workaround for LP: #2016358: create mount points for the gnome
       # content interface, while a proper fix is implemented in snapd.
@@ -431,13 +425,16 @@ parts:
       mkdir $CRAFT_PART_INSTALL/{gnome-platform,data-dir,data-dir/{icons,sounds,themes}}
       craftctl default
     stage-packages:
+      - libasound2
       - libcurl4
       - libpci3
       - libpipewire-0.3-0
       - libpipewire-0.3-modules
       - libspa-0.2-modules
       - libspeechd2
+      - libvulkan1
       - libxt6
+      - mesa-vulkan-drivers
       - pipewire-bin
       - pipewire-pulse
     prime:
@@ -465,11 +462,15 @@ parts:
       - usr/lib/*/libspeechd.so.*
       - usr/lib/*/libssh.so.*
       - usr/lib/*/libssl.so.*
+      - usr/lib/*/libvulkan*
+      - usr/lib/*/libVkLayer*
       - usr/lib/*/libwind.so.*
       - usr/lib/*/libXt.so.*
       - usr/lib/*/pipewire-*
       - usr/lib/*/spa-*
+      - usr/share/alsa
       - usr/share/pipewire
+      - usr/share/vulkan
       # Workaround for LP: #2016358 (see the 'override-stage' above).
       - gnome-platform
       - data-dir/icons
@@ -484,7 +485,7 @@ parts:
       - wget
     override-pull: |
       VERSION=$(craftctl get version | cut -d- -f1)
-      BUILD=$(craftctl get version | cut -d- -f2)
+      BUILD=$(craftctl get version | cut -d- -f2 | cut -d. -f1)
       SERVER=https://ftp.mozilla.org
       ROOT=$SERVER/pub/firefox/candidates/$VERSION-candidates/build$BUILD
       XPIS=$(wget -O - $ROOT/linux-x86_64/xpi/ | sed -n 's/.* href="\(.*\.xpi\)".*/\1/p')
