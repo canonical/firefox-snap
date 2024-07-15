@@ -617,3 +617,7 @@ slots:
     interface: dbus
     bus: session
     name: org.mozilla.firefox_nightly
+
+hooks:
+  post-refresh:
+    plugs: [host-usr-share-hunspell]
