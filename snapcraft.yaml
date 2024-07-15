@@ -604,3 +604,7 @@ slots:
     interface: dbus
     bus: session
     name: org.mozilla.firefox_esr
+
+hooks:
+  post-refresh:
+    plugs: [host-usr-share-hunspell]
