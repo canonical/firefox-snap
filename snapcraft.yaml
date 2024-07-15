@@ -578,8 +578,6 @@ parts:
       echo "ac_add_options --with-google-location-service-api-keyfile=$CRAFT_STAGE/gls-gapi.data" >> $MOZCONFIG
       cat apikeys | jq .MOZ_GOOGLE_SAFEBROWSING_API_KEY | tr -d '"' > $CRAFT_PART_INSTALL/sb-gapi.data
       echo "ac_add_options --with-google-safebrowsing-api-keyfile=$CRAFT_STAGE/sb-gapi.data" >> $MOZCONFIG
-      cat apikeys | jq .MOZ_MOZILLA_API_KEY | tr -d '"' > $CRAFT_PART_INSTALL/mozilla-desktop-geoloc-api.key
-      echo "ac_add_options --with-mozilla-api-keyfile=$CRAFT_STAGE/mozilla-desktop-geoloc-api.key" >> $MOZCONFIG
     override-prime: ''
 
   debug-symbols:
