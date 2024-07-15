@@ -609,3 +609,7 @@ slots:
     interface: dbus
     bus: session
     name: org.mozilla.firefox_beta
+
+hooks:
+  post-refresh:
+    plugs: [host-usr-share-hunspell]
