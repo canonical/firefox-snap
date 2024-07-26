@@ -20,7 +20,7 @@ confinement: strict
 grade: stable
 base: core24
 compression: lzo
-
+source-code: https://github.com/canonical/firefox-snap
 assumes:
   - snapd2.54 # for mount-control
 
