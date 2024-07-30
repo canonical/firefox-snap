@@ -19,6 +19,7 @@ description:  Firefox is a powerful, extensible web browser with support for mod
 confinement: strict
 grade: stable
 base: core22
+source-code: https://github.com/canonical/firefox-snap
 assumes:
   - snapd2.54 # for mount-control
 compression: lzo
