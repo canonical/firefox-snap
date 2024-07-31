@@ -595,4 +595,4 @@ slots:
   dbus-daemon:
     interface: dbus
     bus: session
-    name: org.mozilla.firefox
+    name: org.mozilla.firefox_esr
