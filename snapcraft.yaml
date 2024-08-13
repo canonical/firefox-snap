@@ -154,7 +154,7 @@ parts:
       - rust
     override-build: |
       craftctl default
-      cargo install cbindgen
+      cargo install --version 0.26.0 cbindgen
     override-prime: ''
 
   clang:
