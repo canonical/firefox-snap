@@ -415,7 +415,7 @@ parts:
         DUMP_SYMS=$CRAFT_STAGE/usr/bin/dump_syms $MACH buildsymbols
       fi
       $MACH install
-      cp obj-*/dist/bin/geckodriver $CRAFT_PART_INSTALL/usr/lib/firefox/
+      cp obj-*/dist/host/bin/geckodriver $CRAFT_PART_INSTALL/usr/lib/firefox/
       DISTRIBUTION=$CRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
       cp taskcluster/docker/firefox-snap/firefox.desktop $CRAFT_PART_INSTALL/
