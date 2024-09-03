@@ -421,9 +421,8 @@ parts:
       cp obj-*/dist/host/bin/geckodriver $CRAFT_PART_INSTALL/usr/lib/firefox/
       DISTRIBUTION=$CRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
-      cp taskcluster/docker/firefox-snap/firefox.desktop $CRAFT_PART_INSTALL/
       cp browser/branding/official/default256.png $CRAFT_PART_INSTALL/
-      sed -i 's/\(^Icon=\).*$/\1\/default256.png/' $CRAFT_PART_INSTALL/firefox.desktop
+      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type beta
       if [ $BUILD_DBGSYMS = "true" ]; then
         cp obj-*/dist/firefox-*.crashreporter-symbols.zip $CRAFT_STAGE/debug-symbols/
       fi
