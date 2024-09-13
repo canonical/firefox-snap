@@ -18,7 +18,7 @@ summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
 grade: stable
-base: core22
+base: core24
 compression: lzo
 
 assumes:
@@ -36,8 +36,8 @@ apps:
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: "$SNAP/usr/share/pipewire/pipewire.conf"
-      PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/pipewire-0.3"
-      SPA_PLUGIN_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/spa-0.2"
+      PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/pipewire-0.3"
+      SPA_PLUGIN_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/spa-0.2"
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
       MOZ_DBUS_APP_NAME: "firefox_nightly"
     slots:
@@ -155,7 +155,7 @@ parts:
     build-packages:
       - binutils-dev
       - cmake
-      - libtinfo5
+      - libncurses-dev
       - make
       - wget
     build-environment:
@@ -164,24 +164,24 @@ parts:
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
       BINARIES_BASENAME=clang+llvm-$LLVM_RELEASE
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         BINARIES_SUFFIX=x86_64-linux-gnu-ubuntu-22.04.tar.xz
-      elif [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+      elif [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
         BINARIES_SUFFIX=armv7a-linux-gnueabihf.tar.xz
-      elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      elif [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
         BINARIES_SUFFIX=aarch64-linux-gnu.tar.xz
       fi
       wget -O - $ROOT/$BINARIES_BASENAME-$BINARIES_SUFFIX | tar -x --xz
       # And cmake-$LLVM_RELEASE.src needed on LLVM >= 15.0.0
       wget -O - $ROOT/cmake-$LLVM_RELEASE.src.tar.xz | tar -x --xz
       mv cmake-$LLVM_RELEASE.src cmake
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # And the sources to build LLVMgold.so, which isn't distributed in a binary form
         wget -O - $ROOT/llvm-$LLVM_RELEASE.src.tar.xz | tar -x --xz
       fi
     override-build: |
       craftctl default
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         cd llvm-$LLVM_RELEASE.src
         mkdir build
         cd build
@@ -204,7 +204,7 @@ parts:
       - jq
       - python3-yaml
     override-pull: |
-      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ] || [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
         ROOT=https://ftp.mozilla.org/pub/firefox/nightly/latest-mozilla-central
         REVISION=$(wget -O - $ROOT/firefox-$(craftctl get version).en-US.linux-x86_64.txt | tail -1 | sed -n "s#^.*\/rev/\(.*\)\$#\1#p")
         FETCHES=https://hg.mozilla.org/mozilla-central/raw-file/${REVISION}/taskcluster/kinds/fetch/toolchains.yml
@@ -216,7 +216,7 @@ parts:
       fi
     override-build: |
       craftctl default
-      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ] || [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
         $HOME/.cargo/bin/cargo build --release
         mkdir -p $CRAFT_STAGE/usr/bin/
         cp target/release/dump_syms $CRAFT_STAGE/usr/bin/
@@ -270,11 +270,11 @@ parts:
       - NODEJS_RELEASE: "v18.12.1"
     override-pull: |
       ROOT=https://nodejs.org/dist/$NODEJS_RELEASE/node-$NODEJS_RELEASE-linux-
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         SUFFIX=x64.tar.xz
-      elif [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+      elif [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
         SUFFIX=armv7l.tar.xz
-      elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      elif [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
         SUFFIX=arm64.tar.xz
       fi
       wget -O - $ROOT$SUFFIX | tar -x --xz
@@ -321,6 +321,7 @@ parts:
       - libasound2-dev
       - libdbus-glib-1-dev
       - libgtk2.0-dev
+      - libgtk-3-dev
       - libpython3-dev
       - libx11-xcb-dev
       - libxt-dev
@@ -347,7 +348,7 @@ parts:
       # easily rerun.
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
       BUILD_DBGSYMS=false
-      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ] || [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
         # Build and publish debug symbols for amd64 and arm64 only,
         # because Launchpad builders for armhf choke (OOM) when
         # building with debug symbols enabled, even with
@@ -360,10 +361,10 @@ parts:
       # Same goes for arm64 builds on Launchpad.  It seems we can't
       # detect $GITHUB_WORKSPACE, so we assume presence of the file
       # "symbols-upload-token" means we are running on GitHub.
-      if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token"] || [ $CRAFT_TARGET_ARCH = "arm64" ] || [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+      if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token"] || [ $CRAFT_ARCH_BUILD_FOR = "arm64" ] || [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
         patch -p1 < $CRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
       fi
-      if [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
         patch -p1 < $CRAFT_PROJECT_DIR/patches/armhf-thin-lto.patch
       fi
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
@@ -374,14 +375,14 @@ parts:
       else
         echo "ac_add_options --disable-debug-symbols" >> $MOZCONFIG
       fi
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # Enable LTO and PGO (https://firefox-source-docs.mozilla.org/build/buildsystem/pgo.html) only on amd64 for now.
         # Linking with gold fails on armhf (error: undefined reference to '__aeabi_uldivmod') and would need to be
         # investigated further, and running PGO on arm64 takes forever (> 4 days in the Launchpad build environment!).
         echo "ac_add_options --enable-linker=lld" >> $MOZCONFIG
         echo "ac_add_options MOZ_PGO=1" >> $MOZCONFIG
       fi
-      if [ $CRAFT_TARGET_ARCH != "armhf" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
       fi
       echo "ac_add_options --prefix=$CRAFT_PART_INSTALL/usr" >> $MOZCONFIG
@@ -389,7 +390,7 @@ parts:
       craftctl default
       export PATH=$HOME/.cargo/bin:$PATH
       GNOME_SDK_SNAP=/snap/gnome-42-2204-sdk/current
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # "clang -dumpmachine" returns "x86_64-unknown-linux-gnu" on
         # amd64 (at least the binaries they distribute), but what we
         # really need is "x86_64-pc-linux-gnu"; so let's hard-code it.
@@ -397,28 +398,28 @@ parts:
       else
         export TARGET_TRIPLET=$(clang -dumpmachine)
       fi
-      export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
+      export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
       export LDFLAGS="-Wl,-rpath-link=$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/dist/bin${LDFLAGS:+ $LDFLAGS}"
       export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       export WASI_SYSROOT=$CRAFT_STAGE/wasi-sysroot
       export MOZBUILD_STATE_PATH=$CRAFT_PART_BUILD/.mozbuild
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       BUILD_DBGSYMS=false
-      if [ $CRAFT_TARGET_ARCH = "amd64" ] || [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ] || [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
         # See override-pull above for why we only build debug symbols
         # on these arches.
         BUILD_DBGSYMS=true
       fi
       unset PYTHONPATH
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # Needed for PGO-enabled builds that execute the built binaries. This should mirror the link paths in $LDFLAGS.
-        export LD_LIBRARY_PATH="$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET:$GNOME_SDK_SNAP/usr/lib"
+        export LD_LIBRARY_PATH="$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR:$GNOME_SDK_SNAP/usr/lib"
         # Ensure the instrumented binary is run against the right version of libssl3.so and libnss3.so
         # (locally-built versions are more recent than the ones in the gnome platform snap)
         export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/instrumented/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       fi
       MACH="/usr/bin/python3 ./mach"
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
         xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build --verbose -j$CRAFT_PARALLEL_BUILD_COUNT
       else
@@ -448,15 +449,15 @@ parts:
       mkdir $CRAFT_PART_INSTALL/{gnome-platform,data-dir,data-dir/{icons,sounds,themes}}
       craftctl default
     stage-packages:
-      - libasound2
-      - libcurl4
+      - libasound2t64
+      - libcurl4t64
       - libpci3
-      - libpipewire-0.3-0
+      - libpipewire-0.3-0t64
       - libpipewire-0.3-modules
       - libspa-0.2-modules
       - libspeechd2
       - libvulkan1
-      - libxt6
+      - libxt6t64
       - mesa-vulkan-drivers
       - pipewire-bin
       - pipewire-pulse
@@ -544,7 +545,7 @@ parts:
     # Not using the ffmpeg snap (which might provide a more recent version)
     # because it is currently built on core18
     stage-packages:
-      - libavcodec58
+      - libavcodec60
     prime:
       - usr/lib/*/libaom.so.*
       - usr/lib/*/libavcodec.so.*
@@ -612,7 +613,7 @@ parts:
           rm "$CRAFT_PROJECT_DIR/symbols-upload-token"
           deactivate
         else
-          cp $SYMBOLS_ARCHIVE $CRAFT_PROJECT_DIR/$CRAFT_PROJECT_NAME_$(craftctl get version)_$CRAFT_TARGET_ARCH.debug
+          cp $SYMBOLS_ARCHIVE $CRAFT_PROJECT_DIR/$CRAFT_PROJECT_NAME_$(craftctl get version)_$CRAFT_ARCH_BUILD_FOR.debug
         fi
       fi
 
