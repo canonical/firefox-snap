@@ -449,10 +449,13 @@ parts:
       - mesa-vulkan-drivers
       - pipewire-bin
       - pipewire-pulse
+      - opensc-pkcs11
     prime:
       - default256.png
       - firefox.desktop
       - usr/lib/firefox
+      - usr/lib/*/opensc-pkcs11.so
+      - usr/lib/*/pkcs11/opensc-pkcs11.so
       - usr/lib/*/libasn1.so.*
       - usr/lib/*/libcurl.so.*
       - usr/lib/*/libgssapi.so.*
