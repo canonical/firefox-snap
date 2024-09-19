@@ -61,6 +61,7 @@ apps:
       - network
       - network-observe
       - opengl
+      - pcscd
       - removable-media
       - screen-inhibit-control
       - system-packages-doc
@@ -90,6 +91,7 @@ apps:
       - network
       - network-observe
       - opengl
+      - pcscd
       - removable-media
       - screen-inhibit-control
       - system-packages-doc
