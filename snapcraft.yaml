@@ -131,8 +131,6 @@ layout:
     bind: $SNAP/usr/share/alsa
   /usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so:
     bind-file: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so
-  /usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/pkcs11/opensc-pkcs11.so:
-    bind-file: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/pkcs11/opensc-pkcs11.so
 
 parts:
   rust:
