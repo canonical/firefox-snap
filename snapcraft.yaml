@@ -538,6 +538,11 @@ parts:
     # because it is currently built on core18
     stage-packages:
       - libavcodec60
+      - libhwy1t64
+      - libsvtav1enc1d1
+      - libjxl0.7
+      - librav1e0
+      - libvpl2
     prime:
       - usr/lib/*/libaom.so.*
       - usr/lib/*/libavcodec.so.*
@@ -545,21 +550,27 @@ parts:
       - usr/lib/*/libcodec2.so.*
       - usr/lib/*/libdav1d.so.*
       - usr/lib/*/libgsm.so.*
+      - usr/lib/*/libhwy.so.*
+      - usr/lib/*/libjxl.so.*
+      - usr/lib/*/libjxl_threads.so.*
       - usr/lib/*/libmd.so.*
       - usr/lib/*/libmfx.so.*
       - usr/lib/*/libmp3lame.so.*
       - usr/lib/*/libnuma.so.*
       - usr/lib/*/libOpenCL.so.*
       - usr/lib/*/libopus.so.*
+      - usr/lib/*/librav1e.so.*
       - usr/lib/*/libshine.so.*
       - usr/lib/*/libsnappy.so.*
       - usr/lib/*/libsoxr.so.*
       - usr/lib/*/libspeex.so.*
+      - usr/lib/*/libSvtAv1Enc.so.*
       - usr/lib/*/libswresample.so.*
       - usr/lib/*/libtheoradec.so.*
       - usr/lib/*/libtheoraenc.so.*
       - usr/lib/*/libtwolame.so.*
       - usr/lib/*/libvdpau.so.*
+      - usr/lib/*/libvpl.so.*
       - usr/lib/*/libvpx.so.*
       - usr/lib/*/libwavpack.so.*
       - usr/lib/*/libwebpmux.so.*
