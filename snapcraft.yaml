@@ -128,6 +128,8 @@ layout:
     bind: $SNAP/gnome-platform/usr/share/libdrm
   /usr/share/alsa:
     bind: $SNAP/usr/share/alsa
+  /usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so:
+    bind-file: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so
 
 parts:
   rust:
