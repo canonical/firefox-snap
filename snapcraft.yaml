@@ -391,7 +391,7 @@ parts:
     override-build: |
       craftctl default
       export PATH=$HOME/.cargo/bin:$PATH
-      GNOME_SDK_SNAP=/snap/gnome-42-2204-sdk/current
+      GNOME_SDK_SNAP=/snap/gnome-46-2404-sdk/current
       if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # "clang -dumpmachine" returns "x86_64-unknown-linux-gnu" on
         # amd64 (at least the binaries they distribute), but what we
