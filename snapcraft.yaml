@@ -534,7 +534,9 @@ parts:
       - libsvtav1enc1d1
       - libjxl0.7
       - librav1e0
-      - libvpl2
+      # the package is intel specific
+      - on amd64:
+        - libvpl2
     prime:
       - usr/lib/*/libaom.so.*
       - usr/lib/*/libavcodec.so.*
@@ -562,7 +564,6 @@ parts:
       - usr/lib/*/libtheoraenc.so.*
       - usr/lib/*/libtwolame.so.*
       - usr/lib/*/libvdpau.so.*
-      - usr/lib/*/libvpl.so.*
       - usr/lib/*/libvpx.so.*
       - usr/lib/*/libwavpack.so.*
       - usr/lib/*/libwebpmux.so.*
@@ -571,6 +572,9 @@ parts:
       - usr/lib/*/libx265.so.*
       - usr/lib/*/libxvidcore.so.*
       - usr/lib/*/libzvbi.so.*
+      # the package is intel specific
+      - on amd64:
+        - usr/lib/*/libvpl.so.*
 
   apikeys:
     plugin: nil
