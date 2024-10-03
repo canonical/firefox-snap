@@ -53,7 +53,7 @@ apps:
       - cups-control
       - gsettings
       - hardware-observe
-      - home
+      - home-read-all
       - host-hunspell
       - host-usr-share-hunspell
       - joystick
@@ -83,7 +83,7 @@ apps:
       - cups-control
       - gsettings
       - hardware-observe
-      - home
+      - home-read-all
       - host-hunspell
       - host-usr-share-hunspell
       - joystick
@@ -123,6 +123,9 @@ plugs:
     interface: system-files
     read:
     - /var/lib/snapd/hostfs/usr/share/hunspell
+  home-read-all:
+    interface: home
+    read: all
 
 layout:
   /usr/share/libdrm:
