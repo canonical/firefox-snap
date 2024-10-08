@@ -125,8 +125,6 @@ plugs:
     - /var/lib/snapd/hostfs/usr/share/hunspell
 
 layout:
-  /usr/share/libdrm:
-    bind: $SNAP/gnome-platform/usr/share/libdrm
   /usr/share/alsa:
     bind: $SNAP/usr/share/alsa
   /usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so:
