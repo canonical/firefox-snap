@@ -60,6 +60,7 @@ apps:
       - network
       - network-observe
       - opengl
+      - pcscd
       - removable-media
       - screen-inhibit-control
       - system-packages-doc
@@ -89,6 +90,7 @@ apps:
       - network
       - network-observe
       - opengl
+      - pcscd
       - removable-media
       - screen-inhibit-control
       - system-packages-doc
@@ -126,6 +128,8 @@ layout:
     bind: $SNAP/gnome-platform/usr/share/libdrm
   /usr/share/alsa:
     bind: $SNAP/usr/share/alsa
+  /usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so:
+    bind-file: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so
 
 parts:
   rust:
@@ -444,10 +448,12 @@ parts:
       - mesa-vulkan-drivers
       - pipewire-bin
       - pipewire-pulse
+      - opensc-pkcs11
     prime:
       - default256.png
       - firefox.desktop
       - usr/lib/firefox
+      - usr/lib/*/opensc-pkcs11.so
       - usr/lib/*/libasn1.so.*
       - usr/lib/*/libcurl.so.*
       - usr/lib/*/libgssapi.so.*
