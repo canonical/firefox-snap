@@ -44,7 +44,7 @@ jobs:
             git config user.name "GitHub Actions"
             git config user.email "actions@github.com"
             git commit -m "Bump version to the latest release candidate (${{ env.new_version }})."
-            git push stable
+            git push
           else
             echo "New major version (${{ env.new_version }}), please merge the beta branch into the stable one."
           fi
@@ -71,7 +71,7 @@ jobs:
             git config user.name "GitHub Actions"
             git config user.email "actions@github.com"
             git commit -m "Bump version to the latest ESR release (${{ env.new_version }})."
-            git push esr
+            git push
           else
             echo "New major version (${{ env.new_version }}), please proceed to a manual update."
           fi
@@ -97,7 +97,7 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git commit -m "Bump version to the latest beta (${{ env.new_version }})."
-          git push beta
+          git push
   check-new-nightly:
     runs-on: ubuntu-20.04
     steps:
@@ -118,4 +118,4 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git commit -m "Bump version to the latest nightly (${{ env.new_version }})."
-          git push nightly
+          git push
