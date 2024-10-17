@@ -16,8 +16,8 @@ name: New version check
 
 on:
   schedule:
-    # run every hour (at minute 57)
-    - cron: '57 * * * *'
+    # run every hour (at minute 58)
+    - cron: '58 * * * *'
   workflow_dispatch:
 
 jobs:
