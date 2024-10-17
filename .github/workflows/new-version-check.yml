@@ -27,7 +27,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: stable
-          persist-credentials: false
       - name: Extract current version
         run: ./.github/scripts/extract-current-version.sh
       - name: Install python deps
@@ -45,7 +44,7 @@ jobs:
             git config user.name "GitHub Actions"
             git config user.email "actions@github.com"
             git commit -m "Bump version to the latest release candidate (${{ env.new_version }})."
-            git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git stable
+            git push stable
           else
             echo "New major version (${{ env.new_version }}), please merge the beta branch into the stable one."
           fi
@@ -55,7 +54,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: esr
-          persist-credentials: false
       - name: Extract current version
         run: ./.github/scripts/extract-current-version.sh
       - name: Install python deps
@@ -73,7 +71,7 @@ jobs:
             git config user.name "GitHub Actions"
             git config user.email "actions@github.com"
             git commit -m "Bump version to the latest ESR release (${{ env.new_version }})."
-            git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git esr
+            git push esr
           else
             echo "New major version (${{ env.new_version }}), please proceed to a manual update."
           fi
@@ -83,7 +81,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: beta
-          persist-credentials: false
       - name: Extract current version
         run: ./.github/scripts/extract-current-version.sh
       - name: Install python deps
@@ -100,14 +97,13 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git commit -m "Bump version to the latest beta (${{ env.new_version }})."
-          git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git beta
+          git push beta
   check-new-nightly:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v4
         with:
           ref: nightly
-          persist-credentials: false
       - name: Extract current version
         run: ./.github/scripts/extract-current-version.sh
       - name: Install deps
@@ -122,4 +118,4 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git commit -m "Bump version to the latest nightly (${{ env.new_version }})."
-          git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git nightly
+          git push nightly
