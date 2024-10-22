@@ -159,7 +159,7 @@ parts:
       - make
       - wget
     build-environment:
-      - LLVM_RELEASE: "16.0.4"
+      - LLVM_RELEASE: "17.0.6"
     override-pull: |
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
