@@ -159,7 +159,7 @@ parts:
       - make
       - wget
     build-environment:
-      - LLVM_RELEASE: "16.0.4"
+      - LLVM_RELEASE: "17.0.6"
     override-pull: |
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
@@ -187,7 +187,7 @@ parts:
         cd build
         cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CRAFT_PART_INSTALL/usr ..
         # TODO: use $CRAFT_PARALLEL_BUILD_COUNT again once https://github.com/canonical/snapcraft/issues/4785 is fixed
-        make -j8 install-LLVMgold-stripped
+        make -j$(nproc) install-LLVMgold-stripped
       fi
     override-stage: |
       craftctl default
@@ -424,10 +424,10 @@ parts:
       if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
         # TODO: use $CRAFT_PARALLEL_BUILD_COUNT again once https://github.com/canonical/snapcraft/issues/4785 is fixed
-        xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build --verbose -j8
+        xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build --verbose -j$(nproc)
       else
         # TODO: use $CRAFT_PARALLEL_BUILD_COUNT again once https://github.com/canonical/snapcraft/issues/4785 is fixed
-        $MACH build --verbose -j8
+        $MACH build --verbose -j$(nproc)
       fi
       find . -name 'dep-graph.bin' -delete
       find . -name 'query-cache.bin' -delete
