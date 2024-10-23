@@ -16,18 +16,17 @@ name: New version check
 
 on:
   schedule:
-    # run every hour (at minute 57)
-    - cron: '57 * * * *'
+    # run every hour (at minute 35)
+    - cron: '35 * * * *'
   workflow_dispatch:
 
 jobs:
   check-new-stable:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: stable
-          persist-credentials: false
       - name: Extract current version
         run: ./.github/scripts/extract-current-version.sh
       - name: Install python deps
@@ -45,17 +44,16 @@ jobs:
             git config user.name "GitHub Actions"
             git config user.email "actions@github.com"
             git commit -m "Bump version to the latest release candidate (${{ env.new_version }})."
-            git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git stable
+            git push
           else
             echo "New major version (${{ env.new_version }}), please merge the beta branch into the stable one."
           fi
   check-new-esr:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: esr
-          persist-credentials: false
       - name: Extract current version
         run: ./.github/scripts/extract-current-version.sh
       - name: Install python deps
@@ -73,17 +71,16 @@ jobs:
             git config user.name "GitHub Actions"
             git config user.email "actions@github.com"
             git commit -m "Bump version to the latest ESR release (${{ env.new_version }})."
-            git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git esr
+            git push
           else
             echo "New major version (${{ env.new_version }}), please proceed to a manual update."
           fi
   check-new-beta:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: beta
-          persist-credentials: false
       - name: Extract current version
         run: ./.github/scripts/extract-current-version.sh
       - name: Install python deps
@@ -100,14 +97,13 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git commit -m "Bump version to the latest beta (${{ env.new_version }})."
-          git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git beta
+          git push
   check-new-nightly:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: nightly
-          persist-credentials: false
       - name: Extract current version
         run: ./.github/scripts/extract-current-version.sh
       - name: Install deps
@@ -122,4 +118,4 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git commit -m "Bump version to the latest nightly (${{ env.new_version }})."
-          git push https://${{ github.actor }}:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git nightly
+          git push
