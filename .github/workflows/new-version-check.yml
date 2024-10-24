@@ -53,7 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: esr
+          ref: esr-128
       - name: Extract current version
         run: ./.github/scripts/extract-current-version.sh
       - name: Install python deps
