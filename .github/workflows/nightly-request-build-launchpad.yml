@@ -1,0 +1,42 @@
+# Copyright (C) 2023 Canonical Ltd.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License version 3, as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+name: Request a launchpad build for nightly
+
+on:
+  schedule:
+    # Run every 12 hours (Nightly builds start at 10:00 and 22:00 UTC,
+    # and usually builds are available one hour or two later). Give some room
+    # and assume new builds will be available 3 hours after they start.
+    - cron: '0 1,13 * * *'
+  # Allow running manually, for testing purposes.
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}
+
+jobs:
+  nightly-snap-launchpad:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Install script dependencies
+        run: sudo apt update && sudo apt install coreutils curl openssl
+      - name: Request a Launchpad build for nightly
+        # The OAuth token and secret should be generated and stored as github
+        # secrets for a given Launchpad user, following the instructions at
+        # https://help.launchpad.net/API/SigningRequests
+        run: |
+          url="https://api.launchpad.net/devel/~mozilla-snaps/firefox/+snap/firefox-snap-nightly"
+          archive="https://api.launchpad.net/devel/ubuntu/%2Barchive/primary"
+          pocket="Updates"
+          curl -i -X POST -H "Authorization: OAuth realm=\"https://api.launchpad.net/\",oauth_consumer_key=\"firefox-snap\",oauth_token=\"${{ secrets.LP_OAUTH_TOKEN }}\",oauth_signature_method=\"PLAINTEXT\",oauth_signature=\"%26${{ secrets.LP_OAUTH_TOKEN_SECRET }}\",oauth_timestamp=\"$(date +%s)\",oauth_nonce=\"$(openssl rand -base64 12)\",oauth_version=\"1.0\"" -d "ws.op=requestBuilds" -d "archive=$archive" -d "pocket=$pocket" "$url"

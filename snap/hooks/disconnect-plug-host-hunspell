@@ -1,3 +1,13 @@
 #!/bin/sh
 
+# Clean up old Firefox snap mount for host hunspell; we now use
+# the system-files interface for host hunspell dictionaries.
+
+# TODO: Drop this (along with the host-hunspell mount-control
+# declaration in snapcraft.yaml) later in the future once a
+# reasonable amount of time has passed and nearly all users
+# have an updated version and were migrated to use system-files,
+# and just about no new Ubuntu installations start with a
+# Firefox snap that has the older mount-control interface.
 snapctl umount $SNAP_COMMON/host-hunspell || true
+rm -r $SNAP_COMMON/host-hunspell || true
