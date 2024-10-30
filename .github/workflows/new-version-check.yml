@@ -16,15 +16,15 @@ name: New version check
 
 on:
   schedule:
-    # run every hour (at minute 57)
-    - cron: '57 * * * *'
+    # run every hour (at minute 58)
+    - cron: '58 * * * *'
   workflow_dispatch:
 
 jobs:
   check-new-stable:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: stable
           persist-credentials: false
@@ -52,7 +52,7 @@ jobs:
   check-new-esr:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: esr
           persist-credentials: false
@@ -80,7 +80,7 @@ jobs:
   check-new-beta:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: beta
           persist-credentials: false
