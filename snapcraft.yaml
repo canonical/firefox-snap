@@ -448,7 +448,7 @@ parts:
       done
 
       MACH="/usr/bin/python3 ./mach"
-      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type nightly
+      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type nightly --wmclass firefox_firefox
       if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
         # TODO: use $CRAFT_PARALLEL_BUILD_COUNT again once https://github.com/canonical/snapcraft/issues/4785 is fixed
