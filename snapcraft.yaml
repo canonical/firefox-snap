@@ -430,7 +430,7 @@ parts:
       DISTRIBUTION=$CRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
       cp browser/branding/official/default256.png $CRAFT_PART_INSTALL/
-      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type beta
+      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type beta --wmclass firefox_firefox
       if [ $BUILD_DBGSYMS = "true" ]; then
         cp obj-*/dist/firefox-*.crashreporter-symbols.zip $CRAFT_STAGE/debug-symbols/
       fi
