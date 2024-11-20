@@ -13,7 +13,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 name: firefox
-version: "132.0-1"
+version: "133.0-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -235,12 +235,14 @@ parts:
         cp target/release/dump_syms $CRAFT_STAGE/usr/bin/
       fi
 
-  #This is a temporary workaround to including the hunspell content snap,
-  #which would cause breakage in the Ubuntu desktop image build because of
-  #the Ubuntu policy. See https://bugzilla.mozilla.org/show_bug.cgi?id=1792006.
+  # This is a temporary workaround to including the hunspell content
+  # snap, which would cause breakage in the Ubuntu desktop image build
+  # because of the Ubuntu policy.  See:
+  # https://bugzilla.mozilla.org/show_bug.cgi?id=1792006
   #
-  #The definition of this part is essentially a copy of the corresponding part
-  #in hunspell-dictionaries-1-7-2004 by Buo-ren, Lin.
+  # The definition of this part is essentially a copy of the
+  # corresponding part in hunspell-dictionaries-1-7-2004 by
+  # Buo-ren, Lin.
   hunspell:
     plugin: nil
     override-build: |
@@ -457,6 +459,7 @@ parts:
       - firefox.desktop
       - usr/lib/firefox
       - usr/lib/*/opensc-pkcs11.so
+      - usr/lib/*/pkcs11/opensc-pkcs11.so
       - usr/lib/*/libasn1.so.*
       - usr/lib/*/libcurl.so.*
       - usr/lib/*/libgssapi.so.*

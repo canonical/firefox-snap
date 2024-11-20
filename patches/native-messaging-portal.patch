@@ -1,20 +1,27 @@
-From 1bbaeb5baa715290a3bb981169e6d56bc02afb1e Mon Sep 17 00:00:00 2001
+From 9ed3f1acb16c64d93eabfa7d361bdea41a89216c Mon Sep 17 00:00:00 2001
 From: Amin Bandali <bandali@canonical.com>
-Date: Mon, 12 Feb 2024 21:53:54 -0500
-Subject: [PATCH] NativeMessaging patch from Snap nightly
+Date: Fri, 4 Oct 2024 17:31:15 +0200
+Subject: [PATCH] Bug 1661935 - Integration with a new WebExtensions XDG
+ desktop portal for native messaging on Linux r=robwu
 
+Differential Revision: https://phabricator.services.mozilla.com/D140803
 ---
  modules/libpref/init/StaticPrefList.yaml      |  10 +
  python/mozbuild/mozbuild/mozinfo.py           |   3 +
+ python/sites/xpcshell-test.txt                |   4 +
  .../configs/unittests/linux_unittest.py       |   7 +-
- .../extensions/NativeMessaging.sys.mjs        |  72 ++
- .../extensions/NativeMessagingPortal.cpp      | 619 ++++++++++++++++++
- .../extensions/NativeMessagingPortal.h        |  74 +++
+ testing/xpcshell/mach_commands.py             |   1 +
+ .../extensions/NativeManifests.sys.mjs        |  60 +-
+ .../extensions/NativeMessaging.sys.mjs        | 107 ++-
+ .../extensions/NativeMessagingPortal.cpp      | 696 ++++++++++++++++++
+ .../extensions/NativeMessagingPortal.h        |  76 ++
  toolkit/components/extensions/components.conf |  12 +
+ .../docs/native-messaging-portal-design.rst   |  46 ++
  toolkit/components/extensions/moz.build       |   8 +
- .../extensions/nsINativeMessagingPortal.idl   |  71 ++
+ .../extensions/nsINativeMessagingPortal.idl   |  86 +++
  .../test/xpcshell/native_messaging.toml       |   4 +
- .../test_ext_native_messaging_portal.js       | 378 +++++++++++
+ .../test_ext_native_messaging_portal.js       | 397 ++++++++++
+ .../test/xpcshell/test_native_manifests.js    |  94 +++
  toolkit/modules/subprocess/Subprocess.sys.mjs |  13 +
  .../subprocess/subprocess_common.sys.mjs      |  32 +-
  .../subprocess/subprocess_unix.sys.mjs        |   4 +
@@ -22,20 +29,22 @@ Subject: [PATCH] NativeMessaging patch from Snap nightly
  .../modules/subprocess/subprocess_win.sys.mjs |   6 +
  .../subprocess/subprocess_win.worker.js       |   6 +
  .../subprocess/subprocess_worker_common.js    |  31 +-
- .../test/xpcshell/test_subprocess.js          |  77 +++
+ .../test/xpcshell/test_subprocess.js          |  77 ++
  widget/gtk/WidgetUtilsGtk.cpp                 |   2 +
  widget/gtk/WidgetUtilsGtk.h                   |   1 +
- 21 files changed, 1446 insertions(+), 8 deletions(-)
+ 26 files changed, 1774 insertions(+), 33 deletions(-)
+ create mode 100644 python/sites/xpcshell-test.txt
  create mode 100644 toolkit/components/extensions/NativeMessagingPortal.cpp
  create mode 100644 toolkit/components/extensions/NativeMessagingPortal.h
+ create mode 100644 toolkit/components/extensions/docs/native-messaging-portal-design.rst
  create mode 100644 toolkit/components/extensions/nsINativeMessagingPortal.idl
  create mode 100644 toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js
 
 diff --git a/modules/libpref/init/StaticPrefList.yaml b/modules/libpref/init/StaticPrefList.yaml
-index 8ba1d8b35b6d1..7eb6701c58040 100644
+index b38571bb86536..fc6ca98f05dec 100644
 --- a/modules/libpref/init/StaticPrefList.yaml
 +++ b/modules/libpref/init/StaticPrefList.yaml
-@@ -15666,6 +15666,16 @@
+@@ -17386,6 +17386,16 @@
    value: 2
    mirror: always
  
@@ -53,10 +62,10 @@ index 8ba1d8b35b6d1..7eb6701c58040 100644
  # https://flatpak.github.io/xdg-desktop-portal/#gdbus-org.freedesktop.portal.Settings
  #  - 0: never
 diff --git a/python/mozbuild/mozbuild/mozinfo.py b/python/mozbuild/mozbuild/mozinfo.py
-index b640c5f1d0f31..4d98af5f32051 100644
+index 8f58eec0620f2..d84348105c068 100644
 --- a/python/mozbuild/mozbuild/mozinfo.py
 +++ b/python/mozbuild/mozbuild/mozinfo.py
-@@ -151,6 +151,9 @@ def build_dict(config, env=os.environ):
+@@ -154,6 +154,9 @@ def build_dict(config, env=os.environ):
      ):
          d["android_min_sdk"] = substs["MOZ_ANDROID_MIN_SDK_VERSION"]
  
@@ -66,17 +75,27 @@ index b640c5f1d0f31..4d98af5f32051 100644
      return d
  
  
+diff --git a/python/sites/xpcshell-test.txt b/python/sites/xpcshell-test.txt
+new file mode 100644
+index 0000000000000..54244d52f3397
+--- /dev/null
++++ b/python/sites/xpcshell-test.txt
+@@ -0,0 +1,4 @@
++# dbus and dbusmock are needed for some xpcshell tests on linux
++# e.g. toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js
++pypi-optional:dbus-python:some xpcshell tests requiring DBus mocking will not run
++pypi-optional:python-dbusmock==0.28.4:some xpcshell tests requiring DBus mocking will not run
 diff --git a/testing/mozharness/configs/unittests/linux_unittest.py b/testing/mozharness/configs/unittests/linux_unittest.py
-index 801f57eb14f9e..977cfbe4068c4 100644
+index 103b06b462c8a..e6fc0cea7dfb6 100644
 --- a/testing/mozharness/configs/unittests/linux_unittest.py
 +++ b/testing/mozharness/configs/unittests/linux_unittest.py
 @@ -34,7 +34,12 @@ else:
  #####
  config = {
      ###
--    "virtualenv_modules": ["six==1.13.0", "vcversioner==2.16.0.0"],
+-    "virtualenv_modules": ["six==1.16.0", "vcversioner==2.16.0.0"],
 +    "virtualenv_modules": [
-+        "six==1.13.0",
++        "six==1.16.0",
 +        "vcversioner==2.16.0.0",
 +        "dbus-python==1.2.18",
 +        "python-dbusmock==0.28.4",
@@ -84,10 +103,110 @@ index 801f57eb14f9e..977cfbe4068c4 100644
      "installer_path": INSTALLER_PATH,
      "binary_path": BINARY_PATH,
      "xpcshell_name": XPCSHELL_NAME,
+diff --git a/testing/xpcshell/mach_commands.py b/testing/xpcshell/mach_commands.py
+index 0e8abda5e6093..f25f149397d8f 100644
+--- a/testing/xpcshell/mach_commands.py
++++ b/testing/xpcshell/mach_commands.py
+@@ -210,6 +210,7 @@ def get_parser():
+     description="Run XPCOM Shell tests (API direct unit testing)",
+     conditions=[lambda *args: True],
+     parser=get_parser,
++    virtualenv_name="xpcshell-test",
+ )
+ def run_xpcshell_test(command_context, test_objects=None, **params):
+     from mozbuild.controller.building import BuildDriver
+diff --git a/toolkit/components/extensions/NativeManifests.sys.mjs b/toolkit/components/extensions/NativeManifests.sys.mjs
+index 6d9836b8cde6a..282597c2db80a 100644
+--- a/toolkit/components/extensions/NativeManifests.sys.mjs
++++ b/toolkit/components/extensions/NativeManifests.sys.mjs
+@@ -1,4 +1,4 @@
+-/* -*- Mode: indent-tabs-mode: nil; js-indent-level: 2 -*- */
++/* -*- mode: js; indent-tabs-mode: nil; js-indent-level: 2 -*- */
+ /* vim: set sts=2 sw=2 et tw=80: */
+ /* This Source Code Form is subject to the terms of the Mozilla Public
+  * License, v. 2.0. If a copy of the MPL was not distributed with this
+@@ -89,26 +89,20 @@ export var NativeManifests = {
+     return manifest ? { path, manifest } : null;
+   },
+ 
+-  async _tryPath(type, path, name, context, logIfNotFound) {
+-    let manifest;
+-    try {
+-      manifest = await IOUtils.readJSON(path);
+-    } catch (ex) {
+-      if (ex instanceof SyntaxError && ex.message.startsWith("JSON.parse:")) {
+-        Cu.reportError(`Error parsing native manifest ${path}: ${ex.message}`);
+-        return null;
+-      }
+-      if (DOMException.isInstance(ex) && ex.name == "NotFoundError") {
+-        if (logIfNotFound) {
+-          Cu.reportError(
+-            `Error reading native manifest file ${path}: file is referenced in the registry but does not exist`
+-          );
+-        }
+-        return null;
+-      }
+-      Cu.reportError(ex);
+-      return null;
+-    }
++  /**
++   * Parse a native manifest of the given type and name.
++   *
++   * @param {string} type The type, one of: "pkcs11", "stdio" or "storage".
++   * @param {string} path The path to the manifest file.
++   * @param {string} name The name of the application.
++   * @param {object} context A context object as expected by Schemas.normalize.
++   * @param {object} data The JSON object of the manifest.
++   * @returns {object} The contents of the validated manifest, or null if
++   *                   the manifest is not valid.
++   */
++  async parseManifest(type, path, name, context, data) {
++    await this.init();
++    let manifest = data;
+     let normalized = lazy.Schemas.normalize(
+       manifest,
+       "manifest.NativeManifest",
+@@ -158,6 +152,30 @@ export var NativeManifests = {
+     return manifest;
+   },
+ 
++  async _tryPath(type, path, name, context, logIfNotFound) {
++    let manifest;
++    try {
++      manifest = await IOUtils.readJSON(path);
++    } catch (ex) {
++      if (ex instanceof SyntaxError && ex.message.startsWith("JSON.parse:")) {
++        Cu.reportError(`Error parsing native manifest ${path}: ${ex.message}`);
++        return null;
++      }
++      if (DOMException.isInstance(ex) && ex.name == "NotFoundError") {
++        if (logIfNotFound) {
++          Cu.reportError(
++            `Error reading native manifest file ${path}: file is referenced in the registry but does not exist`
++          );
++        }
++        return null;
++      }
++      Cu.reportError(ex);
++      return null;
++    }
++    manifest = await this.parseManifest(type, path, name, context, manifest);
++    return manifest;
++  },
++
+   async _tryPaths(type, name, dirs, context) {
+     for (let dir of dirs) {
+       let path = PathUtils.join(dir, TYPES[type], `${name}.json`);
 diff --git a/toolkit/components/extensions/NativeMessaging.sys.mjs b/toolkit/components/extensions/NativeMessaging.sys.mjs
-index dcd8fe7807892..23398fc4c7fb0 100644
+index aecca5c438ed1..4f621ed857966 100644
 --- a/toolkit/components/extensions/NativeMessaging.sys.mjs
 +++ b/toolkit/components/extensions/NativeMessaging.sys.mjs
+@@ -1,4 +1,4 @@
+-/* -*- Mode: indent-tabs-mode: nil; js-indent-level: 2 -*- */
++/* -*- mode: js; indent-tabs-mode: nil; js-indent-level: 2 -*- */
+ /* vim: set sts=2 sw=2 et tw=80: */
+ /* This Source Code Form is subject to the terms of the Mozilla Public
+  * License, v. 2.0. If a copy of the MPL was not distributed with this
 @@ -19,6 +19,13 @@ ChromeUtils.defineESModuleGetters(lazy, {
  
  const { ExtensionError, promiseTimeout } = ExtensionUtils;
@@ -102,7 +221,20 @@ index dcd8fe7807892..23398fc4c7fb0 100644
  // For a graceful shutdown (i.e., when the extension is unloaded or when it
  // explicitly calls disconnect() on a native port), how long we give the native
  // application to exit before we start trying to kill it.  (in milliseconds)
-@@ -67,6 +74,14 @@ export class NativeApp extends EventEmitter {
+@@ -49,6 +56,12 @@ XPCOMUtils.defineLazyPreferenceGetter(
+ );
+ 
+ export class NativeApp extends EventEmitter {
++  _throwGenericError(application) {
++    // Report a generic error to not leak information about whether a native
++    // application is installed to addons that do not have the right permission.
++    throw new ExtensionError(`No such native application ${application}`);
++  }
++
+   /**
+    * @param {BaseContext} context The context that initiated the native app.
+    * @param {string} application The identifier of the native app.
+@@ -67,6 +80,18 @@ export class NativeApp extends EventEmitter {
      this.sendQueue = [];
      this.writePromise = null;
      this.cleanupStarted = false;
@@ -110,78 +242,113 @@ index dcd8fe7807892..23398fc4c7fb0 100644
 +
 +    if ("@mozilla.org/extensions/native-messaging-portal;1" in Cc) {
 +      if (lazy.portal.shouldUse()) {
-+        this._initPortal();
++        this.startupPromise = this._doInitPortal().catch(err => {
++          this.startupPromise = null;
++          Cu.reportError(err instanceof Error ? err : err.message);
++          this._cleanup(err);
++        });
 +        return;
 +      }
 +    }
  
      this.startupPromise = lazy.NativeManifests.lookupManifest(
        "stdio",
-@@ -125,6 +140,54 @@ export class NativeApp extends EventEmitter {
+@@ -74,10 +99,8 @@ export class NativeApp extends EventEmitter {
+       context
+     )
+       .then(hostInfo => {
+-        // Report a generic error to not leak information about whether a native
+-        // application is installed to addons that do not have the right permission.
+         if (!hostInfo) {
+-          throw new ExtensionError(`No such native application ${application}`);
++          this._throwGenericError(application);
+         }
+ 
+         let command = hostInfo.manifest.path;
+@@ -123,6 +146,67 @@ export class NativeApp extends EventEmitter {
        });
    }
  
-+  _initPortal() {
-+    this.startupPromise = this._doInitPortal();
-+  }
-+
 +  async _doInitPortal() {
 +    let available = await lazy.portal.available;
-+
 +    if (!available) {
-+      this.startupPromise = null;
-+      let err = new ExtensionError("Native messaging portal is not available");
-+      Cu.reportError(err);
-+      this._cleanup(err);
-+      return;
++      Cu.reportError("Native messaging portal is not available");
++      this._throwGenericError(this.name);
 +    }
 +
++    let handle = await lazy.portal.createSession(this.name);
++    this.portalSessionHandle = handle;
++
++    let hostInfo = null;
++    let path;
 +    try {
-+      let handle = await lazy.portal.createSession(this.name);
-+      this.portalSessionHandle = handle;
-+      let pipes;
-+      try {
-+        pipes = await lazy.portal.start(
-+          handle,
-+          this.name,
-+          this.context.extension.id
-+        );
-+      } catch (err) {
-+        if (err.name == "NotFoundError") {
-+          throw new ExtensionError(`No such native application ${this.name}`);
-+        } else {
-+          throw err;
-+        }
++      let manifest = await lazy.portal.getManifest(
++        handle,
++        this.name,
++        this.context.extension.id
++      );
++      path = manifest.substring(0, 30) + "...";
++      hostInfo = await lazy.NativeManifests.parseManifest(
++        "stdio",
++        path,
++        this.name,
++        this.context,
++        JSON.parse(manifest)
++      );
++    } catch (ex) {
++      if (ex instanceof SyntaxError && ex.message.startsWith("JSON.parse:")) {
++        Cu.reportError(`Error parsing native manifest ${path}: ${ex.message}`);
++        this._throwGenericError(this.name);
 +      }
-+      this.proc = await lazy.Subprocess.connectRunning([
-+        pipes.stdin,
-+        pipes.stdout,
-+        pipes.stderr,
-+      ]);
-+      this.startupPromise = null;
-+      this._startRead();
-+      this._startWrite();
-+      this._startStderrRead();
-+    } catch (err) {
-+      this.startupPromise = null;
-+      Cu.reportError(err instanceof Error ? err : err.message);
-+      this._cleanup(err);
 +    }
++    if (!hostInfo) {
++      this._throwGenericError(this.name);
++    }
++
++    let pipes;
++    try {
++      pipes = await lazy.portal.start(
++        handle,
++        this.name,
++        this.context.extension.id
++      );
++    } catch (err) {
++      if (err.name == "NotFoundError") {
++        this._throwGenericError(this.name);
++      } else {
++        throw err;
++      }
++    }
++    this.proc = await lazy.Subprocess.connectRunning([
++      pipes.stdin,
++      pipes.stdout,
++      pipes.stderr,
++    ]);
++    this.startupPromise = null;
++    this._startRead();
++    this._startWrite();
++    this._startStderrRead();
 +  }
 +
    /**
     * Open a connection to a native messaging host.
     *
-@@ -301,6 +364,15 @@ export class NativeApp extends EventEmitter {
+@@ -299,6 +383,21 @@ export class NativeApp extends EventEmitter {
  
      await this.startupPromise;
  
 +    if (this.portalSessionHandle) {
-+      await this.writePromise;
-+      await lazy.portal.closeSession(this.portalSessionHandle).then(_ => {
-+        this.portalSessionHandle = null;
-+        this.proc = null;
-+      });
++      if (this.writePromise) {
++        await this.writePromise.catch(Cu.reportError);
++      }
++      // When using the WebExtensions portal, we don't control the external
++      // process, the portal does. So let the portal handle waiting/killing the
++      // external process as it sees fit.
++      await lazy.portal
++        .closeSession(this.portalSessionHandle)
++        .catch(Cu.reportError);
++      this.portalSessionHandle = null;
++      this.proc = null;
 +      return;
 +    }
 +
@@ -190,10 +357,10 @@ index dcd8fe7807892..23398fc4c7fb0 100644
        return;
 diff --git a/toolkit/components/extensions/NativeMessagingPortal.cpp b/toolkit/components/extensions/NativeMessagingPortal.cpp
 new file mode 100644
-index 0000000000000..5e6c6423dba14
+index 0000000000000..32b3576a6ef6b
 --- /dev/null
 +++ b/toolkit/components/extensions/NativeMessagingPortal.cpp
-@@ -0,0 +1,619 @@
+@@ -0,0 +1,696 @@
 +/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 +/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 +/* This Source Code Form is subject to the terms of the Mozilla Public
@@ -593,6 +760,78 @@ index 0000000000000..5e6c6423dba14
 +}
 +
 +NS_IMETHODIMP
++NativeMessagingPortal::GetManifest(const nsACString& aHandle,
++                                   const nsACString& aName,
++                                   const nsACString& aExtension, JSContext* aCx,
++                                   dom::Promise** aPromise) {
++  const nsCString& sessionHandle = PromiseFlatCString(aHandle);
++  const nsCString& name = PromiseFlatCString(aName);
++  const nsCString& extension = PromiseFlatCString(aExtension);
++
++  if (!g_variant_is_object_path(sessionHandle.get())) {
++    LOG_NMP("cannot find manifest for %s, invalid session handle %s",
++            name.get(), sessionHandle.get());
++    return NS_ERROR_INVALID_ARG;
++  }
++
++  auto sessionIterator = mSessions.find(sessionHandle.get());
++  if (sessionIterator == mSessions.end()) {
++    LOG_NMP("cannot find manifest for %s, unknown session handle %s",
++            name.get(), sessionHandle.get());
++    return NS_ERROR_INVALID_ARG;
++  }
++
++  if (sessionIterator->second != SessionState::Active) {
++    LOG_NMP("cannot find manifest for %s, inactive session %s", name.get(),
++            sessionHandle.get());
++    return NS_ERROR_FAILURE;
++  }
++
++  if (!mProxy) {
++    LOG_NMP("cannot find manifest for %s, missing D-Bus proxy", name.get());
++    return NS_ERROR_FAILURE;
++  }
++
++  RefPtr<dom::Promise> promise;
++  MOZ_TRY(GetPromise(aCx, promise));
++
++  auto callbackData = MakeUnique<CallbackData>(*promise, sessionHandle.get());
++  g_dbus_proxy_call(
++      mProxy, "GetManifest",
++      g_variant_new("(oss)", sessionHandle.get(), name.get(), extension.get()),
++      G_DBUS_CALL_FLAGS_NONE, -1, nullptr,
++      &NativeMessagingPortal::OnGetManifestDone, callbackData.release());
++
++  promise.forget(aPromise);
++  return NS_OK;
++}
++
++/* static */
++void NativeMessagingPortal::OnGetManifestDone(GObject* source,
++                                              GAsyncResult* result,
++                                              gpointer user_data) {
++  GDBusProxy* proxy = G_DBUS_PROXY(source);
++  UniquePtr<CallbackData> callbackData(static_cast<CallbackData*>(user_data));
++
++  GUniquePtr<GError> error;
++  RefPtr<GVariant> jsonManifest = dont_AddRef(
++      g_dbus_proxy_call_finish(proxy, result, getter_Transfers(error)));
++  if (jsonManifest) {
++    jsonManifest = dont_AddRef(g_variant_get_child_value(jsonManifest, 0));
++    gsize length;
++    const char* value = g_variant_get_string(jsonManifest, &length);
++    LOG_NMP("manifest found in session %s: %s",
++            callbackData->sessionHandle.get(), value);
++    callbackData->promise->MaybeResolve(nsDependentCString(value, length));
++  } else {
++    LOG_NMP("failed to find a manifest in session %s: %s",
++            callbackData->sessionHandle.get(), error->message);
++    LogError(__func__, *error);
++    RejectPromiseWithErrorMessage(*callbackData->promise, *error);
++  }
++}
++
++NS_IMETHODIMP
 +NativeMessagingPortal::Start(const nsACString& aHandle, const nsACString& aName,
 +                             const nsACString& aExtension, JSContext* aCx,
 +                             dom::Promise** aPromise) {
@@ -703,8 +942,13 @@ index 0000000000000..5e6c6423dba14
 +
 +  RefPtr<GVariant> result =
 +      dont_AddRef(g_variant_get_child_value(parameters, 0));
-+  guint32 value = g_variant_get_uint32(result);
-+  if (value == 0) {
++  guint32 response = g_variant_get_uint32(result);
++  // Possible values for response
++  // (https://flatpak.github.io/xdg-desktop-portal/#gdbus-signal-org-freedesktop-portal-Request.Response):
++  //   0: Success, the request is carried out
++  //   1: The user cancelled the interaction
++  //   2: The user interaction was ended in some other way
++  if (response == 0) {
 +    LOG_NMP(
 +        "native application start successful in session %s, requesting file "
 +        "descriptors",
@@ -717,7 +961,7 @@ index 0000000000000..5e6c6423dba14
 +        g_variant_new("(oa{sv})", callbackData->sessionHandle.get(), &options),
 +        G_DBUS_CALL_FLAGS_NONE, -1, nullptr, nullptr,
 +        &NativeMessagingPortal::OnGetPipesDone, callbackData.release());
-+  } else if (value == 1) {
++  } else if (response == 1) {
 +    LOG_NMP("native application start canceled by user in session %s",
 +            callbackData->sessionHandle.get());
 +    callbackData->promise->MaybeRejectWithAbortError(
@@ -815,10 +1059,10 @@ index 0000000000000..5e6c6423dba14
 +}  // namespace mozilla::extensions
 diff --git a/toolkit/components/extensions/NativeMessagingPortal.h b/toolkit/components/extensions/NativeMessagingPortal.h
 new file mode 100644
-index 0000000000000..20bb8c349cc83
+index 0000000000000..2a9998137a0d6
 --- /dev/null
 +++ b/toolkit/components/extensions/NativeMessagingPortal.h
-@@ -0,0 +1,74 @@
+@@ -0,0 +1,76 @@
 +/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 +/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 +/* This Source Code Form is subject to the terms of the Mozilla Public
@@ -880,6 +1124,8 @@ index 0000000000000..20bb8c349cc83
 +                                    const gchar* interface_name,
 +                                    const gchar* signal_name,
 +                                    GVariant* parameters, gpointer user_data);
++  static void OnGetManifestDone(GObject* source, GAsyncResult* result,
++                                gpointer user_data);
 +  static void OnStartDone(GObject* source, GAsyncResult* result,
 +                          gpointer user_data);
 +  static void OnStartRequestResponseSignal(
@@ -913,11 +1159,63 @@ index 0b6461f13dd62..628adc096cc75 100644
 +            'headers': ['mozilla/extensions/NativeMessagingPortal.h'],
 +        },
 +    ]
+diff --git a/toolkit/components/extensions/docs/native-messaging-portal-design.rst b/toolkit/components/extensions/docs/native-messaging-portal-design.rst
+new file mode 100644
+index 0000000000000..10305aff931a2
+--- /dev/null
++++ b/toolkit/components/extensions/docs/native-messaging-portal-design.rst
+@@ -0,0 +1,46 @@
++Native messaging for a strictly-confined Firefox
++================================================
++
++Rationale
++---------
++
++Firefox, when packaged as a snap or flatpak, is confined in a way that the browser only has a very partial view of the host filesystem and limited capabilities.
++Because of this, when an extension requests talking to a native application, the browser cannot locate the corresponding manifest and launch the application directly.
++Instead, it can use the `WebExtensions XDG desktop portal <https://github.com/flatpak/xdg-desktop-portal/pull/705>`_ (work in progress). The portal is responsible for mediating accesses to otherwise unavailable files on the host filesystem, prompting the user whether they want to allow a given extension to launch a given native application (and remembering the user's choice), and spawning the native application on behalf of the browser.
++The portal is browser-agnostic, although currently its only known use is in Firefox.
++
++Workflow
++--------
++
++When Firefox detects that it is running strictly confined, and if the value of the ``widget.use-xdg-desktop-portal.native-messaging`` preference is ≠ ``0``, it queries the existence of the WebExtensions portal on the session bus. If the portal is not available, native messaging will not work (a generic error is reported).
++
++If the portal is available, Firefox starts by creating a session (`CreateSession method <https://github.com/jhenstridge/xdg-desktop-portal/blob/native-messaging-portal/data/org.freedesktop.portal.WebExtensions.xml#L31>`_). The resulting Session object will be used to communicate with the portal until it is closed (`Close method <https://flatpak.github.io/xdg-desktop-portal/#gdbus-method-org-freedesktop-portal-Session.Close>`_).
++
++Firefox then calls `the GetManifest method <https://github.com/jhenstridge/xdg-desktop-portal/blob/native-messaging-portal/data/org.freedesktop.portal.WebExtensions.xml#L58>`_ on the portal, and the portal looks up a host manifest matching the name of the native application and the extension ID, and returns the JSON manifest, which Firefox can use to do its own validation before pursuing.
++
++Firefox then calls `the Start method <https://github.com/jhenstridge/xdg-desktop-portal/blob/native-messaging-portal/data/org.freedesktop.portal.WebExtensions.xml#L74>`_ on the Session object, which creates and returns `a Request object <https://flatpak.github.io/xdg-desktop-portal/#gdbus-org.freedesktop.portal.Request>`_. The portal asynchronously spawns the native application and emits `the Response signal <https://flatpak.github.io/xdg-desktop-portal/#gdbus-signal-org-freedesktop-portal-Request.Response>`_ on the Request object.
++
++Firefox then calls `the GetPipes method <https://github.com/jhenstridge/xdg-desktop-portal/blob/native-messaging-portal/data/org.freedesktop.portal.WebExtensions.xml#L109>`_ on the portal, which returns open file descriptors for stdin, stdout and stderr of the spawned process.
++
++From that point on, Firefox can talk to the native process exactly as it does when running unconfined (i.e. when it is responsible for launching the process itself).
++
++Closing the session will have the portal terminate the native process cleanly.
++
++From a end user's perspective, assuming the portal is present and in use, the only visible difference is going to be a one-time prompt for each extension requesting to launch a given native application. There is currently no GUI tool to edit the saved authorizations, but there is a CLI tool (``flatpak permissions webextensions``, whose name is confusing because it's not flatpak-specific).
++
++Implementation details
++----------------------
++
++Some complexity that is specific to XDG desktop portals architecture is hidden away in the XPCOM interface used by Firefox to talk to the portal: the Request and Response objects aren't exposed (instead the relevant methods are asynchronous and return a Promise that resolves when the response has arrived), and the GetPipes method has been folded into the Start method.
++
++A ``connectRunning()`` method was added to the ``Subprocess`` javascript module to wrap a process spawned externally. Interaction with a ``Process`` object created this way is limited to communication through its open file descriptors, the caller cannot kill or wait on the process.
++
++Extensions with the "nativeMessaging" permission should know nothing about the underlying mechanism used to talk to native applications, so it is important that the errors thrown in this separate code path aren't distinguishable from the generic errors thrown in the "legacy" code path where the browser is responsible for managing the lifecycle of the native applications itself.
++
++Future work
++-----------
++
++The WebExtensions portal isn't widely available yet in a release of the XDG desktop portals project, however an agreement in principle was reached with its maintainers, pending minor changes to the current implementation, and the goal is to land it with the next stable release, 1.18.
++In the meantime, the portal has been available in Ubuntu `as a distro patch <https://launchpad.net/bugs/1968215>`_ starting with release 22.04.
++
++The functionality is exercised with XPCShell tests that mock the portal's DBus interface. There are currently no integration tests that exercise the real portal.
 diff --git a/toolkit/components/extensions/moz.build b/toolkit/components/extensions/moz.build
-index 9f22293d6de6d..bdfc9a41e1496 100644
+index cf426e7283b99..d34ed784f22d3 100644
 --- a/toolkit/components/extensions/moz.build
 +++ b/toolkit/components/extensions/moz.build
-@@ -76,6 +76,7 @@ XPIDL_SOURCES += [
+@@ -77,6 +77,7 @@ XPIDL_SOURCES += [
      "extIWebNavigation.idl",
      "mozIExtensionAPIRequestHandling.idl",
      "mozIExtensionProcessScript.idl",
@@ -925,7 +1223,7 @@ index 9f22293d6de6d..bdfc9a41e1496 100644
  ]
  
  XPIDL_MODULE = "webextensions"
-@@ -102,6 +103,13 @@ UNIFIED_SOURCES += [
+@@ -103,6 +104,13 @@ UNIFIED_SOURCES += [
      "WebExtensionPolicy.cpp",
  ]
  
@@ -941,10 +1239,10 @@ index 9f22293d6de6d..bdfc9a41e1496 100644
  ]
 diff --git a/toolkit/components/extensions/nsINativeMessagingPortal.idl b/toolkit/components/extensions/nsINativeMessagingPortal.idl
 new file mode 100644
-index 0000000000000..30ae5f35bffba
+index 0000000000000..42dc7e96bd983
 --- /dev/null
 +++ b/toolkit/components/extensions/nsINativeMessagingPortal.idl
-@@ -0,0 +1,71 @@
+@@ -0,0 +1,86 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -1001,6 +1299,21 @@ index 0000000000000..30ae5f35bffba
 +  Promise closeSession(in ACString aHandle);
 +
 +  /**
++   * Find and return the JSON manifest for the named native messaging server
++   * as a string. This allows the browser to validate the manifest before
++   * deciding to start the server.
++   *
++   * @param aHandle    The handle of a valid session.
++   * @param aName      The name of the native messaging server to start.
++   * @param aExtension The ID of the extension that issues the request.
++   *
++   * @returns Promise that resolves with an UTF8-encoded string containing
++              the raw JSON manifest.
++   */
++  [implicit_jscontext]
++  Promise getManifest(in ACString aHandle, in ACString aName, in ACString aExtension);
++
++  /**
 +   * Start the named native messaging server, in a previously open session.
 +   * The caller must indicate the requesting web extension (by extension ID).
 +   *
@@ -1017,7 +1330,7 @@ index 0000000000000..30ae5f35bffba
 +  Promise start(in ACString aHandle, in ACString aName, in ACString aExtension);
 +};
 diff --git a/toolkit/components/extensions/test/xpcshell/native_messaging.toml b/toolkit/components/extensions/test/xpcshell/native_messaging.toml
-index 21abf0cffb5e0..7a3cb76ac455b 100644
+index 2b6eabe5c9491..15d1aa6a1fb55 100644
 --- a/toolkit/components/extensions/test/xpcshell/native_messaging.toml
 +++ b/toolkit/components/extensions/test/xpcshell/native_messaging.toml
 @@ -16,4 +16,8 @@ run-sequentially = "very high failure rate in parallel"
@@ -1025,16 +1338,16 @@ index 21abf0cffb5e0..7a3cb76ac455b 100644
  skip-if = ["tsan"] # Unreasonably slow, bug 1612707
  
 +["test_ext_native_messaging_portal.js"]
-+run-if = ["os == 'linux'", "toolkit == 'gtk'", "dbus_enabled"]
++run-if = ["os == 'linux' && toolkit == 'gtk' && dbus_enabled"]
 +tags = "portal"
 +
  ["test_ext_native_messaging_unresponsive.js"]
 diff --git a/toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js b/toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js
 new file mode 100644
-index 0000000000000..a765deb07a6f9
+index 0000000000000..610a83f2aeb71
 --- /dev/null
 +++ b/toolkit/components/extensions/test/xpcshell/test_ext_native_messaging_portal.js
-@@ -0,0 +1,378 @@
+@@ -0,0 +1,397 @@
 +/* -*- Mode: indent-tabs-mode: nil; js-indent-level: 2 -*- */
 +/* vim: set sts=2 sw=2 et tw=80: */
 +"use strict";
@@ -1054,7 +1367,10 @@ index 0000000000000..a765deb07a6f9
 +  "42"
 +);
 +
-+const SCRIPTS = [];
++// Helpful documentation on the WebExtensions portal that is being tested here:
++//   - feature request: https://github.com/flatpak/xdg-desktop-portal/issues/655
++//   - pull request: https://github.com/flatpak/xdg-desktop-portal/pull/705
++//   - D-Bus API: https://github.com/jhenstridge/xdg-desktop-portal/blob/native-messaging-portal/data/org.freedesktop.portal.WebExtensions.xml
 +
 +const SESSION_HANDLE =
 +  "/org/freedesktop/portal/desktop/session/foobar/firefox_xpcshell_tests_mozilla_org_42";
@@ -1073,6 +1389,9 @@ index 0000000000000..a765deb07a6f9
 +const clearCallsMethod = `${dbusMockInterface}.ClearCalls`;
 +const resetMethod = `${dbusMockInterface}.Reset`;
 +const mockRequestObjectPath = "/org/freedesktop/portal/desktop/request";
++const mockManifest =
++  '{"name":"echo","description":"a native connector","type":"stdio","path":"/usr/bin/echo","allowed_extensions":["native@tests.mozilla.org"]}';
++const nativeMessagingPref = "widget.use-xdg-desktop-portal.native-messaging";
 +
 +var DBUS_SESSION_BUS_ADDRESS = "";
 +var DBUS_SESSION_BUS_PID = 0; // eslint-disable-line no-unused-vars
@@ -1102,7 +1421,7 @@ index 0000000000000..a765deb07a6f9
 +}
 +
 +async function mockSetup(objectPath, methodName, args) {
-+  let mockSetup = await lazy.Subprocess.call({
++  let mockProcess = await lazy.Subprocess.call({
 +    command: await lazy.Subprocess.pathSearch("gdbus"),
 +    arguments: [
 +      "call",
@@ -1116,10 +1435,10 @@ index 0000000000000..a765deb07a6f9
 +      ...args,
 +    ],
 +  });
-+  return mockSetup.wait();
++  return mockProcess.wait();
 +}
 +
-+add_setup(async function() {
++add_setup(async function () {
 +  // Start and use a separate message bus for the tests, to not interfere with
 +  // the current's session message bus.
 +  let dbus = await lazy.Subprocess.call({
@@ -1140,11 +1459,11 @@ index 0000000000000..a765deb07a6f9
 +    }
 +  }
 +
-+  let env = Cc["@mozilla.org/process/environment;1"].getService(
-+    Ci.nsIEnvironment
-+  );
-+  env.set("DBUS_SESSION_BUS_ADDRESS", DBUS_SESSION_BUS_ADDRESS);
-+  env.set("GTK_USE_PORTAL", "1");
++  let prefValue = Services.prefs.getIntPref(nativeMessagingPref, 0);
++  Services.prefs.setIntPref(nativeMessagingPref, 2);
++
++  Services.env.set("DBUS_SESSION_BUS_ADDRESS", DBUS_SESSION_BUS_ADDRESS);
++  Services.env.set("GTK_USE_PORTAL", "1");
 +
 +  // dbusmock is used to mock the native messaging portal's D-Bus API.
 +  DBUS_MOCK = await lazy.Subprocess.call({
@@ -1168,7 +1487,7 @@ index 0000000000000..a765deb07a6f9
 +    stderr: "pipe",
 +  });
 +
-+  registerCleanupFunction(async function() {
++  registerCleanupFunction(async function () {
 +    await FDS_MOCK.kill();
 +    await mockSetup(portalObjectPath, resetMethod, []);
 +    await DBUS_MOCK.kill();
@@ -1180,6 +1499,7 @@ index 0000000000000..a765deb07a6f9
 +      command: await lazy.Subprocess.pathSearch("kill"),
 +      arguments: ["-SIGQUIT", DBUS_SESSION_BUS_PID],
 +    });*/
++    Services.prefs.setIntPref(nativeMessagingPref, prefValue);
 +  });
 +
 +  // Set up the mock objects and methods.
@@ -1203,6 +1523,13 @@ index 0000000000000..a765deb07a6f9
 +  ]);
 +  await mockSetup(portalObjectPath, addMethodMethod, [
 +    portalInterfaceName,
++    "GetManifest",
++    "oss",
++    "s",
++    `ret = '${mockManifest}'`,
++  ]);
++  await mockSetup(portalObjectPath, addMethodMethod, [
++    portalInterfaceName,
 +    "Start",
 +    "ossa{sv}",
 +    "o",
@@ -1219,7 +1546,7 @@ index 0000000000000..a765deb07a6f9
 +  optionalPermissionsPromptHandler.init();
 +  optionalPermissionsPromptHandler.acceptPrompt = true;
 +  await AddonTestUtils.promiseStartupManager();
-+  await setupHosts(SCRIPTS);
++  await setupHosts([]); // these tests don't use any native app script
 +});
 +
 +async function verifyDbusMockCall(objectPath, method, offset) {
@@ -1306,6 +1633,11 @@ index 0000000000000..a765deb07a6f9
 +  // portal (i.e. CreateSession and Start are called with the expected
 +  // arguments).
 +  let result = await verifyDbusMockCall(portalObjectPath, "CreateSession", 0);
++  result = await verifyDbusMockCall(
++    portalObjectPath,
++    "GetManifest",
++    result.offset
++  );
 +  result = await verifyDbusMockCall(portalObjectPath, "Start", result.offset);
 +  let match = result.params.match(/{'handle_token': <'(?<token>.*)'>}/);
 +  ok(match, "Start arguments contain a handle token");
@@ -1413,11 +1745,116 @@ index 0000000000000..a765deb07a6f9
 +
 +  await extension.unload();
 +});
+diff --git a/toolkit/components/extensions/test/xpcshell/test_native_manifests.js b/toolkit/components/extensions/test/xpcshell/test_native_manifests.js
+index d4f3ae7243f24..8b5c11a39fca9 100644
+--- a/toolkit/components/extensions/test/xpcshell/test_native_manifests.js
++++ b/toolkit/components/extensions/test/xpcshell/test_native_manifests.js
+@@ -150,6 +150,100 @@ function lookupApplication(app, ctx) {
+   return NativeManifests.lookupManifest("stdio", app, ctx);
+ }
+ 
++add_task(async function test_parse_good_manifest() {
++  let manifest = await NativeManifests.parseManifest(
++    "stdio",
++    "/some/path",
++    "test",
++    context,
++    templateManifest
++  );
++  deepEqual(
++    manifest,
++    templateManifest,
++    "parseManifest returns the manifest contents"
++  );
++});
++
++add_task(async function test_parse_invalid_manifest() {
++  function matchLastConsoleMessage(regex) {
++    ok(Services.console.getMessageArray().pop().message.match(regex));
++  }
++
++  equal(
++    null,
++    await NativeManifests.parseManifest(
++      "pkcs11",
++      "/some/path",
++      "test",
++      context,
++      templateManifest
++    )
++  );
++  matchLastConsoleMessage(
++    /Native manifest \/some\/path has type property stdio \(expected pkcs11\)/
++  );
++
++  equal(
++    null,
++    await NativeManifests.parseManifest(
++      "stdio",
++      "/some/path",
++      "foobar",
++      context,
++      templateManifest
++    )
++  );
++  matchLastConsoleMessage(
++    /Native manifest \/some\/path has name property test \(expected foobar\)/
++  );
++
++  const incompleteManifest = { ...templateManifest };
++  delete incompleteManifest.description;
++  equal(
++    null,
++    await NativeManifests.parseManifest(
++      "stdio",
++      "/some/path",
++      "test",
++      context,
++      incompleteManifest
++    )
++  );
++  matchLastConsoleMessage(/Value must either: match the pattern/);
++
++  const unauthorizedManifest = { ...templateManifest };
++  unauthorizedManifest.allowed_extensions = [];
++  equal(
++    null,
++    await NativeManifests.parseManifest(
++      "stdio",
++      "/some/path",
++      "test",
++      context,
++      unauthorizedManifest
++    )
++  );
++  matchLastConsoleMessage(
++    /Value must either: .allowed_extensions must have at least 1 items/
++  );
++
++  unauthorizedManifest.allowed_extensions = ["unauthorized@tests.mozilla.org"];
++  equal(
++    null,
++    await NativeManifests.parseManifest(
++      "stdio",
++      "/some/path",
++      "test",
++      context,
++      unauthorizedManifest
++    )
++  );
++  matchLastConsoleMessage(
++    /This extension does not have permission to use native manifest \/some\/path/
++  );
++});
++
+ add_task(async function test_nonexistent_manifest() {
+   let result = await lookupApplication("test", context);
+   equal(
 diff --git a/toolkit/modules/subprocess/Subprocess.sys.mjs b/toolkit/modules/subprocess/Subprocess.sys.mjs
-index f26fe50fc2439..63155eb80c4cd 100644
+index ffbeb0acbb56f..07a1da12aac7a 100644
 --- a/toolkit/modules/subprocess/Subprocess.sys.mjs
 +++ b/toolkit/modules/subprocess/Subprocess.sys.mjs
-@@ -191,6 +191,19 @@ export var Subprocess = {
+@@ -188,6 +188,19 @@ export var Subprocess = {
      let path = lazy.SubprocessImpl.pathSearch(command, environment);
      return Promise.resolve(path);
    },
@@ -1569,7 +2006,7 @@ index 85632d239824b..cf2de29a4cfc9 100644
  
      handlers = handlers.filter(handler => handler.pollEvents);
 diff --git a/toolkit/modules/subprocess/subprocess_win.sys.mjs b/toolkit/modules/subprocess/subprocess_win.sys.mjs
-index baf86402357d5..5ff3531f194b0 100644
+index baf86402357d5..7a3338274b571 100644
 --- a/toolkit/modules/subprocess/subprocess_win.sys.mjs
 +++ b/toolkit/modules/subprocess/subprocess_win.sys.mjs
 @@ -168,6 +168,12 @@ var SubprocessWin = {
@@ -1577,7 +2014,7 @@ index baf86402357d5..5ff3531f194b0 100644
      throw error;
    },
 +
-+  connectRunning(fds) {
++  connectRunning(_fds) {
 +    // Not relevant (yet?) on Windows. This is currently used only on Unix
 +    // for native messaging through the WebExtensions portal.
 +    throw new Error("Not implemented");
@@ -1586,14 +2023,14 @@ index baf86402357d5..5ff3531f194b0 100644
  
  export var SubprocessImpl = SubprocessWin;
 diff --git a/toolkit/modules/subprocess/subprocess_win.worker.js b/toolkit/modules/subprocess/subprocess_win.worker.js
-index 22d3857f8cf39..78b31b47045d8 100644
+index 22d3857f8cf39..b4e431b7722df 100644
 --- a/toolkit/modules/subprocess/subprocess_win.worker.js
 +++ b/toolkit/modules/subprocess/subprocess_win.worker.js
 @@ -601,6 +601,12 @@ class Process extends BaseProcess {
      libc.CloseHandle(procInfo.hThread);
    }
  
-+  connectRunning(options) {
++  connectRunning(_options) {
 +    // Not relevant (yet?) on Windows. This is currently used only on Unix
 +    // for native messaging through the WebExtensions portal.
 +    throw new Error("Not implemented");
@@ -1666,10 +2103,10 @@ index b22480c0dd304..f8197773bc1a7 100644
  
  onmessage = event => {
 diff --git a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js b/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
-index e71b6b5203783..554a6c3077106 100644
+index 51c9956d0d914..1a55cd9eec7c4 100644
 --- a/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
 +++ b/toolkit/modules/subprocess/test/xpcshell/test_subprocess.js
-@@ -853,6 +853,83 @@ add_task(async function test_bad_executable() {
+@@ -855,6 +855,83 @@ add_task(async function test_bad_executable() {
    );
  });
  
@@ -1680,7 +2117,7 @@ index e71b6b5203783..554a6c3077106 100644
 +    if (tempFile.exists()) {
 +      tempFile.remove(true);
 +    }
-+    registerCleanupFunction(async function() {
++    registerCleanupFunction(async function () {
 +      tempFile.remove(true);
 +    });
 +
@@ -1718,7 +2155,7 @@ index e71b6b5203783..554a6c3077106 100644
 +      /Cannot kill/,
 +      "A process externally managed cannot be killed"
 +    );
-+    [proc.stdin, proc.stdout, proc.stderr].forEach((pipe, i) =>
++    [proc.stdin, proc.stdout, proc.stderr].forEach((pipe, _i) =>
 +      greater(
 +        pipe.id,
 +        0,
@@ -1754,10 +2191,10 @@ index e71b6b5203783..554a6c3077106 100644
    let { getSubprocessImplForTest } = ChromeUtils.importESModule(
      "resource://gre/modules/Subprocess.sys.mjs"
 diff --git a/widget/gtk/WidgetUtilsGtk.cpp b/widget/gtk/WidgetUtilsGtk.cpp
-index 1a78e5cb93e71..a9df376a0f680 100644
+index 0d2425b3d0d9a..52b6ce899c15b 100644
 --- a/widget/gtk/WidgetUtilsGtk.cpp
 +++ b/widget/gtk/WidgetUtilsGtk.cpp
-@@ -208,6 +208,8 @@ bool ShouldUsePortal(PortalKind aPortalKind) {
+@@ -214,6 +214,8 @@ bool ShouldUsePortal(PortalKind aPortalKind) {
          // Mime portal breaks default browser handling, see bug 1516290.
          autoBehavior = IsRunningUnderFlatpakOrSnap();
          return StaticPrefs::widget_use_xdg_desktop_portal_mime_handler();
@@ -1767,10 +2204,10 @@ index 1a78e5cb93e71..a9df376a0f680 100644
          autoBehavior = true;
          return StaticPrefs::widget_use_xdg_desktop_portal_settings();
 diff --git a/widget/gtk/WidgetUtilsGtk.h b/widget/gtk/WidgetUtilsGtk.h
-index ffd7425ae5cb1..09d8275c585cf 100644
+index 5cf6604b3c11d..8d6f1d67279e5 100644
 --- a/widget/gtk/WidgetUtilsGtk.h
 +++ b/widget/gtk/WidgetUtilsGtk.h
-@@ -54,6 +54,7 @@ inline bool IsRunningUnderFlatpakOrSnap() {
+@@ -53,6 +53,7 @@ inline bool IsRunningUnderFlatpakOrSnap() {
  enum class PortalKind {
    FilePicker,
    MimeHandler,
@@ -1779,5 +2216,5 @@ index ffd7425ae5cb1..09d8275c585cf 100644
    Location,
    OpenUri,
 -- 
-2.43.0
+2.45.2
 
