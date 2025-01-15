@@ -40,6 +40,7 @@ apps:
       SPA_PLUGIN_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/spa-0.2"
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
       MOZ_DBUS_APP_NAME: "firefox_beta"
+      MOZ_APP_REMOTINGNAME: "firefox_firefox"
     slots:
       - dbus-daemon
       - mpris
