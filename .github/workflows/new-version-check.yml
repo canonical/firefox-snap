@@ -47,6 +47,8 @@ jobs:
             git push
           else
             echo "New major version (${{ env.new_version }}), please merge the beta branch into the stable one."
+            mm_notification=$(printf '{"text": "Merge new major stable Firefox version: %s"}' ${{ env.new_version }})
+            curl -s -i -X POST -H 'Content-Type: application/json' -d "$mm_notification" "${{ secrets.MM_URL }}"
           fi
   check-new-esr:
     runs-on: ubuntu-20.04
@@ -74,6 +76,8 @@ jobs:
             git push
           else
             echo "New major version (${{ env.new_version }}), please proceed to a manual update."
+            mm_notification=$(printf '{"text": "Merge new major ESR Firefox version: %s"}' ${{ env.new_version }})
+            curl -s -i -X POST -H 'Content-Type: application/json' -d "$mm_notification" "${{ secrets.MM_URL }}"
           fi
   check-new-beta:
     runs-on: ubuntu-20.04
