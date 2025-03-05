@@ -22,7 +22,7 @@ on:
 
 jobs:
   check-new-stable:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,7 +51,7 @@ jobs:
             curl -s -i -X POST -H 'Content-Type: application/json' -d "$mm_notification" "${{ secrets.MM_URL }}"
           fi
   check-new-esr:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,7 +80,7 @@ jobs:
             curl -s -i -X POST -H 'Content-Type: application/json' -d "$mm_notification" "${{ secrets.MM_URL }}"
           fi
   check-new-beta:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -103,7 +103,7 @@ jobs:
           git commit -m "Bump version to the latest beta (${{ env.new_version }})."
           git push
   check-new-nightly:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
