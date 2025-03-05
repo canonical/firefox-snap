@@ -22,7 +22,7 @@ on:
 
 jobs:
   check-new-stable:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,7 +49,7 @@ jobs:
             echo "New major version (${{ env.new_version }}), please merge the beta branch into the stable one."
           fi
   check-new-esr:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -76,7 +76,7 @@ jobs:
             echo "New major version (${{ env.new_version }}), please proceed to a manual update."
           fi
   check-new-beta:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
