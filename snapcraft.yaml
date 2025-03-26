@@ -13,7 +13,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 name: firefox
-version: "136.0-3"
+version: "137.0-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -140,7 +140,7 @@ parts:
       - wget
     override-pull: |
       # Do not use rustup to work around https://forum.snapcraft.io/t/armhf-builds-on-launchpad-timing-out/31008
-      REQUIRED_RUST_VERSION=1.76.0
+      REQUIRED_RUST_VERSION=1.82.0
       ROOT=https://static.rust-lang.org/dist/rust-$REQUIRED_RUST_VERSION
       if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         BINARIES_SUFFIX=x86_64-unknown-linux-gnu
@@ -414,8 +414,8 @@ parts:
         export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/instrumented/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       fi
       MACH="/usr/bin/python3 ./mach"
-      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type release
-      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
+      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type release --wmclass firefox_firefox
+      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
         # TODO: use $CRAFT_PARALLEL_BUILD_COUNT again once https://github.com/canonical/snapcraft/issues/4785 is fixed
         xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build -j8

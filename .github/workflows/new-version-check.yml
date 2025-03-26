@@ -47,6 +47,12 @@ jobs:
             git push
           else
             echo "New major version (${{ env.new_version }}), please merge the beta branch into the stable one."
+            # We don't want this spamming the Mattermost channel, so just allow
+            # it to send messages between 10:00 and 11:00.
+            if [ "$(date +%H)" = 10 ]; then
+              mm_notification=$(printf '{"text": "Merge new major stable Firefox version: %s"}' ${{ env.new_version }})
+              curl -s -i -X POST -H 'Content-Type: application/json' -d "$mm_notification" "${{ secrets.MM_URL }}"
+            fi
           fi
   check-new-esr:
     runs-on: ubuntu-24.04
@@ -73,7 +79,13 @@ jobs:
             git commit -m "Bump version to the latest ESR release (${{ env.new_version }})."
             git push
           else
-            echo "New major version (${{ env.new_version }}), please proceed to a manual update."
+            # We don't want this spamming the Mattermost channel, so just allow
+            # it to send messages between 10:00 and 11:00.
+            if [ "$(date +%H)" = 10 ]; then
+              echo "New major version (${{ env.new_version }}), please proceed to a manual update."
+              mm_notification=$(printf '{"text": "Merge new major ESR Firefox version: %s"}' ${{ env.new_version }})
+              curl -s -i -X POST -H 'Content-Type: application/json' -d "$mm_notification" "${{ secrets.MM_URL }}"
+            fi
           fi
   check-new-beta:
     runs-on: ubuntu-24.04
