@@ -539,8 +539,15 @@ parts:
       MACH="/usr/bin/python3 ./mach"
       $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type nightly
       if grep -qF "MOZ_PGO=1" "$MOZCONFIG"; then
+        # Builds get OOM way too often in Launchpad while compiling gkrust,
+        # so reduce parallelism in Launchpad.
+        if snap info snapcraft | grep -q 'tracking:.*launchpad-buildd'; then
+          n_parallel_jobs=$((CRAFT_PARALLEL_BUILD_COUNT/2))
+        else
+          n_parallel_jobs=$CRAFT_PARALLEL_BUILD_COUNT
+        fi
         # xvfb is only needed when doing a PGO-enabled build
-        xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build --verbose -j$CRAFT_PARALLEL_BUILD_COUNT
+        xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build --verbose -j$n_parallel_jobs
       else
         $MACH build --verbose -j$CRAFT_PARALLEL_BUILD_COUNT
       fi
