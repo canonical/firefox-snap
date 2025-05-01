@@ -542,7 +542,7 @@ parts:
         # Builds get OOM way too often in Launchpad while compiling gkrust,
         # so reduce parallelism in Launchpad.
         if snap info snapcraft | grep -q 'tracking:.*launchpad-buildd'; then
-          n_parallel_jobs=$((CRAFT_PARALLEL_BUILD_COUNT/2))
+          n_parallel_jobs=1
         else
           n_parallel_jobs=$CRAFT_PARALLEL_BUILD_COUNT
         fi
