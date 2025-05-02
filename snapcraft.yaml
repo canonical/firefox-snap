@@ -541,7 +541,7 @@ parts:
       if grep -qF "MOZ_PGO=1" "$MOZCONFIG"; then
         # Builds get OOM way too often in Launchpad while compiling gkrust,
         # so reduce parallelism in Launchpad.
-        if snap info snapcraft | grep -q 'tracking:.*launchpad-buildd'; then
+        if snap info snapcraft | grep 'tracking:.*launchpad-buildd'; then
           n_parallel_jobs=1
         else
           n_parallel_jobs=$CRAFT_PARALLEL_BUILD_COUNT
