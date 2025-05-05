@@ -735,21 +735,27 @@ parts:
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libcodec2.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libdav1d.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libgsm.so.*
+      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libhwy.so.*
+      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libjxl.so.*
+      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libjxl_threads.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libmd.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libmfx.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libmp3lame.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libnuma.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libOpenCL.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libopus.so.*
+      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/librav1e.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libshine.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libsnappy.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libsoxr.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libspeex.so.*
+      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libSvtAv1Enc.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libswresample.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libtheoradec.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libtheoraenc.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libtwolame.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libvdpau.so.*
+      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libvpl.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libvpx.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libwavpack.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libwebpmux.so.*
