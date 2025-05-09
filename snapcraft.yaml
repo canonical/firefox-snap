@@ -373,8 +373,12 @@ parts:
       if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token"] || [ $CRAFT_TARGET_ARCH = "arm64" ] || [ $CRAFT_TARGET_ARCH = "armhf" ]; then
         patch -p1 < $CRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
       fi
-      if [ $CRAFT_TARGET_ARCH = "armhf" ]; then
-        patch -p1 < $CRAFT_PROJECT_DIR/patches/armhf-thin-lto.patch
+      # Hardware is too limited on Launchpad armhf and amd64 builders,
+      # so use thin rather than fat LTO. You can attempt to drop this when
+      # amd64 builders have at least 32 GB of memory as per
+      # https://help.launchpad.net/Packaging/BuilderSpecs
+      if [ $CRAFT_ARCH_BUILD_ON != "arm64" ]; then
+        patch -p1 < $CRAFT_PROJECT_DIR/patches/thin-lto.patch
       fi
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       if [ $BUILD_DBGSYMS = "true" ]; then
