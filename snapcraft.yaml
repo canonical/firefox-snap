@@ -13,7 +13,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 name: firefox
-version: "132.0-1"
+version: "140.0esr-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -39,6 +39,8 @@ apps:
       PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/pipewire-0.3"
       SPA_PLUGIN_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/spa-0.2"
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
+      MOZ_DBUS_APP_NAME: "firefox_esr"
+      MOZ_APP_REMOTINGNAME: "firefox_firefox"
     slots:
       - dbus-daemon
       - mpris
@@ -57,6 +59,7 @@ apps:
       - host-usr-share-hunspell
       - joystick
       - login-session-observe
+      - mount-observe
       - network
       - network-observe
       - opengl
@@ -138,7 +141,7 @@ parts:
       - wget
     override-pull: |
       # Do not use rustup to work around https://forum.snapcraft.io/t/armhf-builds-on-launchpad-timing-out/31008
-      REQUIRED_RUST_VERSION=1.76.0
+      REQUIRED_RUST_VERSION=1.82.0
       ROOT=https://static.rust-lang.org/dist/rust-$REQUIRED_RUST_VERSION
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         BINARIES_SUFFIX=x86_64-unknown-linux-gnu
@@ -146,6 +149,8 @@ parts:
         BINARIES_SUFFIX=armv7-unknown-linux-gnueabihf
       elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
         BINARIES_SUFFIX=aarch64-unknown-linux-gnu
+      elif [ $CRAFT_ARCH_BUILD_FOR = "riscv64" ]; then
+        BINARIES_SUFFIX=riscv64gc-unknown-linux-gnu
       fi
       wget -O - $ROOT-$BINARIES_SUFFIX.tar.gz | tar -x -z --strip-components=1
       ./install.sh --prefix=/usr --destdir=$CRAFT_STAGE
@@ -234,12 +239,14 @@ parts:
         cp target/release/dump_syms $CRAFT_STAGE/usr/bin/
       fi
 
-  #This is a temporary workaround to including the hunspell content snap,
-  #which would cause breakage in the Ubuntu desktop image build because of
-  #the Ubuntu policy. See https://bugzilla.mozilla.org/show_bug.cgi?id=1792006.
+  # This is a temporary workaround to including the hunspell content
+  # snap, which would cause breakage in the Ubuntu desktop image build
+  # because of the Ubuntu policy.  See:
+  # https://bugzilla.mozilla.org/show_bug.cgi?id=1792006
   #
-  #The definition of this part is essentially a copy of the corresponding part
-  #in hunspell-dictionaries-1-7-2004 by Buo-ren, Lin.
+  # The definition of this part is essentially a copy of the
+  # corresponding part in hunspell-dictionaries-1-7-2004 by
+  # Buo-ren, Lin.
   hunspell:
     plugin: nil
     override-build: |
@@ -366,8 +373,12 @@ parts:
       if [ -f "$CRAFT_PROJECT_DIR/symbols-upload-token"] || [ $CRAFT_TARGET_ARCH = "arm64" ] || [ $CRAFT_TARGET_ARCH = "armhf" ]; then
         patch -p1 < $CRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
       fi
-      if [ $CRAFT_TARGET_ARCH = "armhf" ]; then
-        patch -p1 < $CRAFT_PROJECT_DIR/patches/armhf-thin-lto.patch
+      # Hardware is too limited on Launchpad armhf and amd64 builders,
+      # so use thin rather than fat LTO. You can attempt to drop this when
+      # amd64 builders have at least 32 GB of memory as per
+      # https://help.launchpad.net/Packaging/BuilderSpecs
+      if [ $CRAFT_ARCH_BUILD_ON != "arm64" ]; then
+        patch -p1 < $CRAFT_PROJECT_DIR/patches/thin-lto.patch
       fi
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       if [ $BUILD_DBGSYMS = "true" ]; then
@@ -409,7 +420,7 @@ parts:
         export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/instrumented/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       fi
       MACH="/usr/bin/python3 ./mach"
-      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type release
+      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type esr --wmclass firefox_firefox
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
         xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build -j$CRAFT_PARALLEL_BUILD_COUNT
@@ -454,6 +465,7 @@ parts:
       - firefox.desktop
       - usr/lib/firefox
       - usr/lib/*/opensc-pkcs11.so
+      - usr/lib/*/pkcs11/opensc-pkcs11.so
       - usr/lib/*/libasn1.so.*
       - usr/lib/*/libcurl.so.*
       - usr/lib/*/libgssapi.so.*
@@ -608,7 +620,7 @@ slots:
   dbus-daemon:
     interface: dbus
     bus: session
-    name: org.mozilla.firefox
+    name: org.mozilla.firefox_esr
 
 hooks:
   post-refresh:

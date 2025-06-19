@@ -27,7 +27,7 @@ concurrency: ${{ github.workflow }}
 
 jobs:
   nightly-snap-launchpad:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Install script dependencies
         run: sudo apt update && sudo apt install coreutils curl openssl

@@ -53,7 +53,7 @@ def test_version(current_version, candidate):
         build = get_latest_build(candidate)
         # Only try to get the build number if it's actually present.
         new_build = "-" in current_version and \
-            build > float(current_version.split('-')[1])
+            build > int(current_version.split('-')[1])
         if nv > cv or new_build:
             return '{}-{}'.format(candidate, build)
     return None
