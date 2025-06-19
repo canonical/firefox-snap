@@ -13,7 +13,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 name: firefox
-version: "128.4.0esr-1"
+version: "132.0-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -39,7 +39,6 @@ apps:
       PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/pipewire-0.3"
       SPA_PLUGIN_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/spa-0.2"
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
-      MOZ_DBUS_APP_NAME: "firefox_esr"
     slots:
       - dbus-daemon
       - mpris
@@ -61,6 +60,7 @@ apps:
       - network
       - network-observe
       - opengl
+      - pcscd
       - removable-media
       - screen-inhibit-control
       - system-packages-doc
@@ -90,6 +90,7 @@ apps:
       - network
       - network-observe
       - opengl
+      - pcscd
       - removable-media
       - screen-inhibit-control
       - system-packages-doc
@@ -127,6 +128,8 @@ layout:
     bind: $SNAP/gnome-platform/usr/share/libdrm
   /usr/share/alsa:
     bind: $SNAP/usr/share/alsa
+  /usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so:
+    bind-file: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so
 
 parts:
   rust:
@@ -154,7 +157,7 @@ parts:
       - rust
     override-build: |
       craftctl default
-      cargo install --version 0.26.0 cbindgen
+      cargo install cbindgen
     override-prime: ''
 
   clang:
@@ -406,6 +409,7 @@ parts:
         export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/instrumented/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       fi
       MACH="/usr/bin/python3 ./mach"
+      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type release
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
         xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build -j$CRAFT_PARALLEL_BUILD_COUNT
@@ -416,12 +420,10 @@ parts:
         DUMP_SYMS=$CRAFT_STAGE/usr/bin/dump_syms $MACH buildsymbols
       fi
       $MACH install
-      cp obj-*/dist/bin/geckodriver $CRAFT_PART_INSTALL/usr/lib/firefox/
+      cp obj-*/dist/host/bin/geckodriver $CRAFT_PART_INSTALL/usr/lib/firefox/
       DISTRIBUTION=$CRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
-      cp taskcluster/docker/firefox-snap/firefox.desktop $CRAFT_PART_INSTALL/
       cp browser/branding/official/default256.png $CRAFT_PART_INSTALL/
-      sed -i 's/\(^Icon=\).*$/\1\/default256.png/' $CRAFT_PART_INSTALL/firefox.desktop
       if [ $BUILD_DBGSYMS = "true" ]; then
         cp obj-*/dist/firefox-*.crashreporter-symbols.zip $CRAFT_STAGE/debug-symbols/
       fi
@@ -446,10 +448,12 @@ parts:
       - mesa-vulkan-drivers
       - pipewire-bin
       - pipewire-pulse
+      - opensc-pkcs11
     prime:
       - default256.png
       - firefox.desktop
       - usr/lib/firefox
+      - usr/lib/*/opensc-pkcs11.so
       - usr/lib/*/libasn1.so.*
       - usr/lib/*/libcurl.so.*
       - usr/lib/*/libgssapi.so.*
@@ -604,7 +608,7 @@ slots:
   dbus-daemon:
     interface: dbus
     bus: session
-    name: org.mozilla.firefox_esr
+    name: org.mozilla.firefox
 
 hooks:
   post-refresh:
