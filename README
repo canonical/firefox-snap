@@ -1,0 +1,5 @@
+This is Firefox extended support release 140, to be published in the channel
+esr/*/140.
+
+The current ESR, i.e. ESR 128, is kept on the default esr/* channel until
+the next ESR, i.e., ESR 140, goes to full rollout with 140.3.0esr.
