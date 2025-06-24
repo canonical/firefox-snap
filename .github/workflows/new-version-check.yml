@@ -56,11 +56,14 @@ jobs:
             fi
           fi
   check-new-esr:
+    strategy:
+      matrix:
+        esr-branch: [esr, esr-140]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: esr
+          ref: ${{ matrix.esr-branch }}
       - name: Extract current version
         run: ./.github/scripts/extract-current-version.sh
       - name: Install python deps
