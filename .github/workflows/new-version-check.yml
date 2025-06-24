@@ -38,6 +38,7 @@ jobs:
       - name: Update snapcraft.yaml with the new version
         if: env.new_version
         run: |
+          set -x
           if [ $(echo ${{ env.current_version }} | cut -d. -f1) = $(echo ${{ env.new_version }} | cut -d. -f1) ]; then
             sed -i "s/^version: \"\(.*\)\"$/version: \"${{ env.new_version }}\"/" snapcraft.yaml
             git add snapcraft.yaml
@@ -55,11 +56,14 @@ jobs:
             fi
           fi
   check-new-esr:
+    strategy:
+      matrix:
+        esr-branch: [esr, esr-140]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: esr
+          ref: ${{ matrix.esr-branch }}
       - name: Extract current version
         run: ./.github/scripts/extract-current-version.sh
       - name: Install python deps
@@ -71,6 +75,7 @@ jobs:
       - name: Update snapcraft.yaml with the new version
         if: env.new_version
         run: |
+          set -x
           current_esr_major_version=$(echo ${{ env.current_version }} | cut -d. -f1)
           new_esr_major_version=$(echo ${{ env.new_version }} | cut -d. -f1)
           if [ "$current_esr_major_version" = "$new_esr_major_version" ]; then
@@ -81,7 +86,7 @@ jobs:
             git commit -m "Bump version to the latest ESR release (${{ env.new_version }})."
             git push
           # Only warn about new ESR major version if such an esr-{version} branch does not exist
-          elif ! git rev-parse -q --verify "esr-$new_esr_major_version"; then
+          elif ! git show-ref "esr-$new_esr_major_version"; then
             # We don't want this spamming the Mattermost channel, so just allow
             # it to send messages between 10:00 and 11:00.
             if [ "$(date +%H)" = 10 ]; then
