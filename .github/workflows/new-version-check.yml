@@ -86,7 +86,7 @@ jobs:
             git commit -m "Bump version to the latest ESR release (${{ env.new_version }})."
             git push
           # Only warn about new ESR major version if such an esr-{version} branch does not exist
-          elif ! git rev-parse -q --verify "esr-$new_esr_major_version"; then
+          elif ! git show-ref "esr-$new_esr_major_version"; then
             # We don't want this spamming the Mattermost channel, so just allow
             # it to send messages between 10:00 and 11:00.
             if [ "$(date +%H)" = 10 ]; then
