@@ -38,6 +38,7 @@ jobs:
       - name: Update snapcraft.yaml with the new version
         if: env.new_version
         run: |
+          set -x
           if [ $(echo ${{ env.current_version }} | cut -d. -f1) = $(echo ${{ env.new_version }} | cut -d. -f1) ]; then
             sed -i "s/^version: \"\(.*\)\"$/version: \"${{ env.new_version }}\"/" snapcraft.yaml
             git add snapcraft.yaml
@@ -71,6 +72,7 @@ jobs:
       - name: Update snapcraft.yaml with the new version
         if: env.new_version
         run: |
+          set -x
           current_esr_major_version=$(echo ${{ env.current_version }} | cut -d. -f1)
           new_esr_major_version=$(echo ${{ env.new_version }} | cut -d. -f1)
           if [ "$current_esr_major_version" = "$new_esr_major_version" ]; then
