@@ -41,6 +41,7 @@ apps:
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
       MOZ_DBUS_APP_NAME: "firefox_beta"
       MOZ_APP_REMOTINGNAME: "firefox_firefox"
+      MOZ_LEGACY_HOME: 1
     slots:
       - dbus-daemon
       - mpris
