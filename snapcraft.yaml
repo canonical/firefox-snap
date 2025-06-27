@@ -65,6 +65,7 @@ apps:
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
       MOZ_DBUS_APP_NAME: "firefox_nightly"
       MOZ_APP_REMOTINGNAME: "firefox_firefox"
+      XDG_CONFIG_HOME: "$SNAP_USER_COMMON/.config"
     slots:
       - dbus-daemon
       - mpris
@@ -695,6 +696,8 @@ parts:
 
   distribution:
     plugin: nil
+    build-packages:
+      - git
     override-pull : |
       git clone --depth 1 https://github.com/mozilla-partners/canonical.git .
       mkdir -p $CRAFT_PRIME/usr/lib/firefox/
