@@ -42,7 +42,18 @@ def get_latest_build(candidate):
     return int(builds[-1][:-1].split('build')[-1])
 
 
-def test_version(current_version, candidate):
+"""Return candidate if it is larger than current_version.
+
+If ignore_major is True, then the major version number is ignored in the check.
+Originally intended for ESR: We are more deliberate about which ESRs we
+really want, and we are always alerted in the mailing list about new major
+ESR numbers anyway.
+"""
+def test_version(current_version, candidate, ignore_major=False):
+    if ignore_major:
+        if candidate.split('.')[0] > current_version.split('.')[0]:
+            return None
+
     # Drop the "esr" suffix from the candidate, since version.parse
     # only supports versions that follow the PEP 440 requirements.
     nv = version.parse(candidate.split("esr")[0])
@@ -75,7 +86,9 @@ def check_new_candidates(channel, current_version):
         if channel == RELEASE and \
            ("b" in candidate or candidate.endswith("esr")):
             continue
-        new_version = test_version(new_version, candidate) or new_version
+        ignore_major = "esr" in current_version
+        new_version = test_version(new_version, candidate, ignore_major) or \
+                      new_version
     if new_version != current_version:
         logging.info("new version: {} > {}"
                      .format(new_version, current_version))
