@@ -207,7 +207,7 @@ parts:
     override-stage: |
       craftctl default
       mkdir -p usr
-      cp -R $CRAFT_PART_SRC/clang+llvm-$LLVM_RELEASE-*/* usr/
+      cp -R $CRAFT_PART_BUILD/clang+llvm-$LLVM_RELEASE-*/* usr/
     override-prime: ''
 
   dump-syms:
@@ -420,6 +420,14 @@ parts:
         # (locally-built versions are more recent than the ones in the gnome platform snap)
         export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/instrumented/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       fi
+
+      # Hack to avoid out of space condition when building. This removes the
+      # sources of all parts. FIXME when Launchpad builders get more space
+      # (currently 80 GB: https://help.launchpad.net/Packaging/BuilderSpecs)
+      for d in $CRAFT_PROJECT_DIR/parts/*/; do
+          rm -rf "$d"/src || :
+      done
+
       MACH="/usr/bin/python3 ./mach"
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
@@ -515,14 +523,15 @@ parts:
       SERVER=https://ftp.mozilla.org
       ROOT=$SERVER/pub/firefox/candidates/$VERSION-candidates/build$BUILD
       XPIS=$(wget -O - $ROOT/linux-x86_64/xpi/ | sed -n 's/.* href="\(.*\.xpi\)".*/\1/p')
+      mkdir -p $CRAFT_STAGE
       for XPI in $XPIS; do
-        wget $SERVER$XPI
+        wget -P $CRAFT_STAGE $SERVER$XPI
       done
     override-prime: |
       INSTALLDIR=$CRAFT_PRIME/usr/lib/firefox/distribution/extensions
       mkdir -p $INSTALLDIR
-      for XPI in $(ls $CRAFT_PART_SRC/*.xpi); do
-        LANGCODE=$(basename $XPI .xpi)
+      for XPI in $(ls $CRAFT_STAGE/*.xpi); do
+        LANGCODE=$(basename $XPI .langpack.xpi)
         mkdir $INSTALLDIR/locale-$LANGCODE
         cp $XPI $INSTALLDIR/locale-$LANGCODE/langpack-$LANGCODE@firefox.mozilla.org.xpi
       done
@@ -535,10 +544,10 @@ parts:
 
   distribution:
     plugin: nil
-    source: https://github.com/mozilla-partners/canonical.git
-    override-prime: |
-      mkdir -p $CRAFT_PRIME/usr/lib/firefox
-      cp -R $CRAFT_PART_SRC/desktop/ubuntu/distribution $CRAFT_PRIME/usr/lib/firefox/
+    override-pull : |
+      git clone --depth 1 https://github.com/mozilla-partners/canonical.git .
+      mkdir -p $CRAFT_PRIME/usr/lib/firefox/
+      cp -Rv desktop/ubuntu/distribution $CRAFT_PRIME/usr/lib/firefox/
 
   ffmpeg:
     plugin: nil
