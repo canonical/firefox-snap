@@ -233,11 +233,18 @@ parts:
       elif [ $CRAFT_ARCH_BUILD_ON = "arm64" ]; then
         BINARIES_SUFFIX=aarch64-linux-gnu.tar.xz
       fi
-      case "$BINARIES_SUFFIX" in
-        *gz) tar_flag="--gzip";;
-        *xz) tar_flag="--xz";;
-      esac
-      wget -O - $ROOT/$BINARIES_BASENAME-$BINARIES_SUFFIX | tar -x "$tar_flag"
+
+      # Github introduced a time-out that causes this pull to fail in ARMv8
+      # Launchpad builders. Use -c to continue a failed pull. Give up after
+      # 6 attempts.
+      i=0
+      until wget -cO llvm.tar.xz $ROOT/$BINARIES_BASENAME-$BINARIES_SUFFIX; do
+        i=$((i+1))
+        test [ "$i" = 6 ] && exit 53
+      done
+      tar -xf llvm.tar.xz
+      rm llvm.tar.xz
+
       # And cmake-$LLVM_RELEASE.src needed on LLVM >= 15.0.0
       wget -O - $ROOT/cmake-$LLVM_RELEASE.src.tar.xz | tar -x --xz
       mv cmake-$LLVM_RELEASE.src cmake
