@@ -13,7 +13,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 name: firefox
-version: "141.0-2"
+version: "142.0b9-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -184,7 +184,18 @@ parts:
       elif [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
         BINARIES_SUFFIX=aarch64-linux-gnu.tar.xz
       fi
-      wget -O - $ROOT/$BINARIES_BASENAME-$BINARIES_SUFFIX | tar -x --xz
+
+      # Github introduced a time-out that causes this pull to fail in ARMv8
+      # Launchpad builders. Use -c to continue a failed pull. Give up after
+      # 6 attempts.
+      i=0
+      until wget -cO llvm.tar.xz $ROOT/$BINARIES_BASENAME-$BINARIES_SUFFIX; do
+        i=$((i+1))
+        test [ "$i" = 6 ] && exit 53
+      done
+      tar -xf llvm.tar.xz
+      rm llvm.tar.xz
+
       # And cmake-$LLVM_RELEASE.src needed on LLVM >= 15.0.0
       wget -O - $ROOT/cmake-$LLVM_RELEASE.src.tar.xz | tar -x --xz
       mv cmake-$LLVM_RELEASE.src cmake
@@ -205,7 +216,7 @@ parts:
     override-stage: |
       craftctl default
       mkdir -p usr
-      cp -R $CRAFT_PART_SRC/clang+llvm-$LLVM_RELEASE-*/* usr/
+      cp -R $CRAFT_PART_BUILD/clang+llvm-$LLVM_RELEASE-*/* usr/
     override-prime: ''
 
   dump-syms:
@@ -419,6 +430,14 @@ parts:
         # (locally-built versions are more recent than the ones in the gnome platform snap)
         export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/instrumented/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       fi
+
+      # Hack to avoid out of space condition when building. This removes the
+      # sources of all parts. FIXME when Launchpad builders get more space
+      # (currently 80 GB: https://help.launchpad.net/Packaging/BuilderSpecs)
+      for d in $CRAFT_PROJECT_DIR/parts/*/; do
+          rm -rf "$d"/src || :
+      done
+
       MACH="/usr/bin/python3 ./mach"
       $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type release --wmclass firefox_firefox
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
@@ -516,14 +535,15 @@ parts:
       SERVER=https://ftp.mozilla.org
       ROOT=$SERVER/pub/firefox/candidates/$VERSION-candidates/build$BUILD
       XPIS=$(wget -O - $ROOT/linux-x86_64/xpi/ | sed -n 's/.* href="\(.*\.xpi\)".*/\1/p')
+      mkdir -p $CRAFT_STAGE
       for XPI in $XPIS; do
-        wget $SERVER$XPI
+        wget -P $CRAFT_STAGE $SERVER$XPI
       done
     override-prime: |
       INSTALLDIR=$CRAFT_PRIME/usr/lib/firefox/distribution/extensions
       mkdir -p $INSTALLDIR
-      for XPI in $(ls $CRAFT_PART_SRC/*.xpi); do
-        LANGCODE=$(basename $XPI .xpi)
+      for XPI in $(ls $CRAFT_STAGE/*.xpi); do
+        LANGCODE=$(basename $XPI .langpack.xpi)
         mkdir $INSTALLDIR/locale-$LANGCODE
         cp $XPI $INSTALLDIR/locale-$LANGCODE/langpack-$LANGCODE@firefox.mozilla.org.xpi
       done
@@ -536,10 +556,10 @@ parts:
 
   distribution:
     plugin: nil
-    source: https://github.com/mozilla-partners/canonical.git
-    override-prime: |
-      mkdir -p $CRAFT_PRIME/usr/lib/firefox
-      cp -R $CRAFT_PART_SRC/desktop/ubuntu/distribution $CRAFT_PRIME/usr/lib/firefox/
+    override-pull : |
+      git clone --depth 1 https://github.com/mozilla-partners/canonical.git .
+      mkdir -p $CRAFT_PRIME/usr/lib/firefox/
+      cp -Rv desktop/ubuntu/distribution $CRAFT_PRIME/usr/lib/firefox/
 
   ffmpeg:
     plugin: nil
