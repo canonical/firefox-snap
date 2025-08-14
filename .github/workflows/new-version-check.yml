@@ -42,8 +42,8 @@ jobs:
           if [ $(echo ${{ env.current_version }} | cut -d. -f1) = $(echo ${{ env.new_version }} | cut -d. -f1) ]; then
             sed -i "s/^version: \"\(.*\)\"$/version: \"${{ env.new_version }}\"/" snapcraft.yaml
             git add snapcraft.yaml
-            git config user.name "GitHub Actions"
-            git config user.email "actions@github.com"
+            git config user.name "Canonical Github Actions"
+            git config user.email "actions@canonical.com"
             git commit -m "Bump version to the latest release candidate (${{ env.new_version }})."
             git push
           else
