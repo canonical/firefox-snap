@@ -27,6 +27,7 @@ assumes:
 apps:
   firefox:
     command: firefox.launcher
+    desktop: firefox.desktop
     extensions: [gnome]
     environment:
       # See below and also the 'snap/hooks/post-refresh' file for
@@ -414,6 +415,8 @@ parts:
       # On Risc-V Launchpad builders: 407 Proxy Authentication Required'))': /simple/fluent-runtime/
       if [ $CRAFT_TARGET_ARCH != "riscv64" ]; then
           $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type beta
+      else
+          cp $CRAFT_PROJECT_DIR/firefox-riscv.desktop $CRAFT_PART_INSTALL/firefox.desktop
       fi
       if [ $BUILD_DBGSYMS = "true" ]; then
         cp obj-*/dist/firefox-*.crashreporter-symbols.zip $CRAFT_STAGE/debug-symbols/
