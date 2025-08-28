@@ -309,6 +309,7 @@ parts:
       ln -sf /usr/bin/cargo{-1.82,}         || :
 
       cargo install cbindgen
+      # Needed until the Gnome SDK is promoted to stable for RISC-V.
       snap refresh --edge gnome-46-2404-sdk
 
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
