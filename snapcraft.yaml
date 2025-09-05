@@ -396,7 +396,7 @@ parts:
       done
 
       MACH="/usr/bin/python3 ./mach"
-      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type release
+      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type beta
       if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
         # TODO: use $CRAFT_PARALLEL_BUILD_COUNT again once https://github.com/canonical/snapcraft/issues/4785 is fixed
@@ -414,11 +414,6 @@ parts:
       mkdir -p $DISTRIBUTION/extensions
       cp browser/branding/official/default256.png $CRAFT_PART_INSTALL/
       # On Risc-V Launchpad builders: 407 Proxy Authentication Required'))': /simple/fluent-runtime/
-      if [ $CRAFT_TARGET_ARCH != "riscv64" ]; then
-          $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type beta
-      else
-          cp $CRAFT_PROJECT_DIR/firefox-riscv.desktop $CRAFT_PART_INSTALL/firefox.desktop
-      fi
       if [ $BUILD_DBGSYMS = "true" ]; then
         cp obj-*/dist/firefox-*.crashreporter-symbols.zip $CRAFT_STAGE/debug-symbols/
       fi
