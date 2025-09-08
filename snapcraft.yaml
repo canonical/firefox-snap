@@ -183,51 +183,6 @@ parts:
     prime:
       - usr/share/hunspell
 
-<<<<<<< HEAD
-  # We use the amd64 binary for all architectures since the used files are said
-  # to be arch-independent.
-  wasi-sdk:
-    plugin: nil
-    after:
-      - clang
-    build-packages:
-      - wget
-    build-environment:
-      - WASI_BRANCH: "15"
-      - WASI_RELEASE: "15.0"
-    override-pull: |
-      ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$WASI_BRANCH
-      wget $ROOT/wasi-sysroot-$WASI_RELEASE.tar.gz
-      wget $ROOT/libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
-    override-build: |
-      craftctl default
-      tar -C $CRAFT_STAGE -xf wasi-sysroot-$WASI_RELEASE.tar.gz
-      tar -C $CRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
-    override-prime: ''
-
-  nodejs:
-    plugin: nil
-    build-packages:
-      - wget
-    build-environment:
-      - NODEJS_RELEASE: "v16.18.1"
-    override-pull: |
-      ROOT=https://nodejs.org/dist/$NODEJS_RELEASE/node-$NODEJS_RELEASE-linux-
-      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
-        SUFFIX=x64.tar.xz
-      elif [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
-        SUFFIX=armv7l.tar.xz
-      elif [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
-        SUFFIX=arm64.tar.xz
-      fi
-      wget -O - $ROOT$SUFFIX | tar -x --xz
-    override-build: |
-      craftctl default
-      cp -R node-$NODEJS_RELEASE-linux-*/ $CRAFT_PART_INSTALL/usr/
-    override-prime: ''
-
-=======
->>>>>>> f8df155 (Firefox on RISC)
   mozconfig:
     plugin: nil
     override-stage: |
@@ -350,24 +305,16 @@ parts:
         echo "ac_add_options --enable-linker=lld" >> $MOZCONFIG
         echo "ac_add_options MOZ_PGO=1" >> $MOZCONFIG
       fi
-<<<<<<< HEAD
-      if [ $CRAFT_ARCH_BUILD_FOR != "armhf" ]; then
-=======
       # third_party/rust/crash-context's ucontext_t does not support RISC-V
-      if [ $CRAFT_TARGET_ARCH = "riscv64" ]; then
+      if [ $CRAFT_ARCH_BUILD_FOR = "riscv64" ]; then
         echo "ac_add_options --disable-crashreporter" >> $MOZCONFIG
       fi
-      if [ $CRAFT_TARGET_ARCH != "armhf" ]; then
->>>>>>> f8df155 (Firefox on RISC)
+      if [ $CRAFT_ARCH_BUILD_FOR != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
       fi
       echo "ac_add_options --prefix=$CRAFT_PART_INSTALL/usr" >> $MOZCONFIG
       GNOME_SDK_SNAP=/snap/gnome-46-2404-sdk/current
-<<<<<<< HEAD
       if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
-=======
-      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
->>>>>>> f8df155 (Firefox on RISC)
         # "clang -dumpmachine" returns "x86_64-unknown-linux-gnu" on
         # amd64 (at least the binaries they distribute), but what we
         # really need is "x86_64-pc-linux-gnu"; so let's hard-code it.
