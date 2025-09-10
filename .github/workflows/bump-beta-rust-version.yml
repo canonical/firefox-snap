@@ -32,10 +32,11 @@ jobs:
         run: sudo apt update && sudo apt install coreutils curl dpkg grep
       - name: Update rust requirement if needed
         run: |
+          set -u
           CURRENT=$(grep -m1 REQUIRED_RUST_VERSION snapcraft.yaml | cut -d= -f2)
           echo "Current rust version requirement: $CURRENT"
           FILE=https://hg.mozilla.org/releases/mozilla-beta/raw-file/tip/python/mozboot/mozboot/util.py
-          NEW=$(curl -s $FILE | grep MINIMUM_RUST_VERSION | cut -d= -f2 | cut -d\" -f2)
+          NEW=$(curl -Ls $FILE | grep MINIMUM_RUST_VERSION | cut -d= -f2 | cut -d\" -f2)
           echo "New rust version requirement: $NEW"
           if $(dpkg --compare-versions $CURRENT lt $NEW); then
             sed -i "s/\(REQUIRED_RUST_VERSION=\)$CURRENT/\1$NEW/" snapcraft.yaml
