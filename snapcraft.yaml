@@ -13,7 +13,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 name: firefox
-version: "142.0b9-1"
+version: "143.0b4-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -134,97 +134,10 @@ layout:
     bind-file: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so
 
 parts:
-  rust:
-    plugin: nil
-    build-packages:
-      - wget
-    override-pull: |
-      # Do not use rustup to work around https://forum.snapcraft.io/t/armhf-builds-on-launchpad-timing-out/31008
-      REQUIRED_RUST_VERSION=1.82.0
-      ROOT=https://static.rust-lang.org/dist/rust-$REQUIRED_RUST_VERSION
-      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
-        BINARIES_SUFFIX=x86_64-unknown-linux-gnu
-      elif [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
-        BINARIES_SUFFIX=armv7-unknown-linux-gnueabihf
-      elif [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
-        BINARIES_SUFFIX=aarch64-unknown-linux-gnu
-      elif [ $CRAFT_ARCH_BUILD_FOR = "riscv64" ]; then
-        BINARIES_SUFFIX=riscv64gc-unknown-linux-gnu
-      fi
-      wget -O - $ROOT-$BINARIES_SUFFIX.tar.gz | tar -x -z --strip-components=1
-      ./install.sh --prefix=/usr --destdir=$CRAFT_STAGE
-    override-prime: ''
-
-  cbindgen:
-    plugin: nil
-    after:
-      - rust
-    override-build: |
-      craftctl default
-      cargo install cbindgen
-    override-prime: ''
-
-  clang:
-    plugin: nil
-    build-packages:
-      - binutils-dev
-      - cmake
-      - libncurses-dev
-      - make
-      - wget
-    build-environment:
-      - LLVM_RELEASE: "16.0.4"
-    override-pull: |
-      ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
-      # Download the binaries
-      BINARIES_BASENAME=clang+llvm-$LLVM_RELEASE
-      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
-        BINARIES_SUFFIX=x86_64-linux-gnu-ubuntu-22.04.tar.xz
-      elif [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
-        BINARIES_SUFFIX=armv7a-linux-gnueabihf.tar.xz
-      elif [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
-        BINARIES_SUFFIX=aarch64-linux-gnu.tar.xz
-      fi
-
-      # Github introduced a time-out that causes this pull to fail in ARMv8
-      # Launchpad builders. Use -c to continue a failed pull. Give up after
-      # 6 attempts.
-      i=0
-      until wget -cO llvm.tar.xz $ROOT/$BINARIES_BASENAME-$BINARIES_SUFFIX; do
-        i=$((i+1))
-        test [ "$i" = 6 ] && exit 53
-      done
-      tar -xf llvm.tar.xz
-      rm llvm.tar.xz
-
-      # And cmake-$LLVM_RELEASE.src needed on LLVM >= 15.0.0
-      wget -O - $ROOT/cmake-$LLVM_RELEASE.src.tar.xz | tar -x --xz
-      mv cmake-$LLVM_RELEASE.src cmake
-      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
-        # And the sources to build LLVMgold.so, which isn't distributed in a binary form
-        wget -O - $ROOT/llvm-$LLVM_RELEASE.src.tar.xz | tar -x --xz
-      fi
-    override-build: |
-      craftctl default
-      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
-        cd llvm-$LLVM_RELEASE.src
-        mkdir build
-        cd build
-        cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CRAFT_PART_INSTALL/usr ..
-        # TODO: use $CRAFT_PARALLEL_BUILD_COUNT again once https://github.com/canonical/snapcraft/issues/4785 is fixed
-        make -j8 install-LLVMgold-stripped
-      fi
-    override-stage: |
-      craftctl default
-      mkdir -p usr
-      cp -R $CRAFT_PART_BUILD/clang+llvm-$LLVM_RELEASE-*/* usr/
-    override-prime: ''
-
   dump-syms:
     plugin: nil
-    after:
-      - rust
     build-packages:
+      - cargo-1.82
       - curl
       - git
       - jq
@@ -246,7 +159,8 @@ parts:
     override-build: |
       craftctl default
       if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ] || [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
-        cargo build --release
+        cargo-1.82 build --release
+        mkdir -p $CRAFT_STAGE/usr/bin/
         cp target/release/dump_syms $CRAFT_STAGE/usr/bin/
       fi
 
@@ -269,48 +183,6 @@ parts:
     prime:
       - usr/share/hunspell
 
-  # We use the amd64 binary for all architectures since the used files are said
-  # to be arch-independent.
-  wasi-sdk:
-    plugin: nil
-    after:
-      - clang
-    build-packages:
-      - wget
-    build-environment:
-      - WASI_BRANCH: "15"
-      - WASI_RELEASE: "15.0"
-    override-pull: |
-      ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$WASI_BRANCH
-      wget $ROOT/wasi-sysroot-$WASI_RELEASE.tar.gz
-      wget $ROOT/libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
-    override-build: |
-      craftctl default
-      tar -C $CRAFT_STAGE -xf wasi-sysroot-$WASI_RELEASE.tar.gz
-      tar -C $CRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
-    override-prime: ''
-
-  nodejs:
-    plugin: nil
-    build-packages:
-      - wget
-    build-environment:
-      - NODEJS_RELEASE: "v16.18.1"
-    override-pull: |
-      ROOT=https://nodejs.org/dist/$NODEJS_RELEASE/node-$NODEJS_RELEASE-linux-
-      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
-        SUFFIX=x64.tar.xz
-      elif [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
-        SUFFIX=armv7l.tar.xz
-      elif [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
-        SUFFIX=arm64.tar.xz
-      fi
-      wget -O - $ROOT$SUFFIX | tar -x --xz
-    override-build: |
-      craftctl default
-      cp -R node-$NODEJS_RELEASE-linux-*/ $CRAFT_PART_INSTALL/usr/
-    override-prime: ''
-
   mozconfig:
     plugin: nil
     override-stage: |
@@ -327,23 +199,29 @@ parts:
     plugin: nil
     after:
       - apikeys
-      - cbindgen
-      - clang
       - distribution
       - dump-syms
       - ffmpeg
       - firefox-langpacks
       - hunspell
       - mozconfig
-      - nodejs
-      - rust
-      - wasi-sdk
     build-packages:
+      - rustc-1.82
+      - cargo-1.82
       - cmake
+      - clang-18
+      - lld-18
+      - llvm-18
       - coreutils
       - file
       - git
+      - g++
       - libasound2-dev
+      - libc++-18-dev-wasm32
+      - libc++abi-18-dev
+      - libc++abi-18-dev-wasm32
+      - libclang-rt-18-dev
+      - libclang-rt-18-dev-wasm32
       - libdbus-glib-1-dev
       - libgtk2.0-dev
       - libpython3-dev
@@ -352,10 +230,12 @@ parts:
       - m4
       - make
       - nasm
+      - nodejs
       - quilt
       - unzip
       - wget
       - xvfb
+      - wasi-libc
       - zip
     override-pull: |
       VERSION=$(craftctl get version | cut -d- -f1)
@@ -366,6 +246,27 @@ parts:
       cp toolkit/crashreporter/tools/upload_symbols.py $CRAFT_STAGE/debug-symbols/
     override-build: |
       craftctl default
+
+      for i in /usr/bin/llvm-*-18; do
+        ln -sf "$i" "${i%-18}" || :
+      done
+      ln -sf /usr/bin/lld{-18,}      || :
+      ln -sf /usr/bin/lld-link{-18,} || :
+      ln -sf /usr/bin/ld.lld{-18,}   || :
+      ln -sf /usr/bin/wasm-ld{-18,}  || :
+      ln -sf /usr/bin/lld{-18,}      || :
+      ln -sf /usr/bin/clang{-18,}    || :
+      ln -sf /usr/bin/clang++{-18,}  || :
+      ln -sf /usr/bin/rustc{-1.82,}         || :
+      ln -sf /usr/bin/rust{-1.82,}-clang    || :
+      ln -sf /usr/bin/rust{-1.82,}-lld      || :
+      ln -sf /usr/bin/rust{-1.82,}-llvm-dwp || :
+      ln -sf /usr/bin/cargo{-1.82,}         || :
+
+      cargo install cbindgen
+      # Needed until the Gnome SDK is promoted to stable for RISC-V.
+      snap refresh --edge gnome-46-2404-sdk
+
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
       BUILD_DBGSYMS=false
       if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ] || [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
@@ -404,6 +305,10 @@ parts:
         echo "ac_add_options --enable-linker=lld" >> $MOZCONFIG
         echo "ac_add_options MOZ_PGO=1" >> $MOZCONFIG
       fi
+      # third_party/rust/crash-context's ucontext_t does not support RISC-V
+      if [ $CRAFT_ARCH_BUILD_FOR = "riscv64" ]; then
+        echo "ac_add_options --disable-crashreporter" >> $MOZCONFIG
+      fi
       if [ $CRAFT_ARCH_BUILD_FOR != "armhf" ]; then
         echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
       fi
@@ -420,7 +325,6 @@ parts:
       export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
       export LDFLAGS="-Wl,-rpath-link=$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/dist/bin${LDFLAGS:+ $LDFLAGS}"
       export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-      export WASI_SYSROOT=$CRAFT_STAGE/wasi-sysroot
       export MOZBUILD_STATE_PATH=$CRAFT_PART_BUILD/.mozbuild
       unset PYTHONPATH
       if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
@@ -439,7 +343,7 @@ parts:
       done
 
       MACH="/usr/bin/python3 ./mach"
-      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type release
+      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type beta
       if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
         # TODO: use $CRAFT_PARALLEL_BUILD_COUNT again once https://github.com/canonical/snapcraft/issues/4785 is fixed
@@ -456,7 +360,7 @@ parts:
       DISTRIBUTION=$CRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
       cp browser/branding/official/default256.png $CRAFT_PART_INSTALL/
-      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type beta
+      # On Risc-V Launchpad builders: 407 Proxy Authentication Required'))': /simple/fluent-runtime/
       if [ $BUILD_DBGSYMS = "true" ]; then
         cp obj-*/dist/firefox-*.crashreporter-symbols.zip $CRAFT_STAGE/debug-symbols/
       fi
