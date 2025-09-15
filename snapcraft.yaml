@@ -83,7 +83,6 @@ apps:
       - host-hunspell
       - host-usr-share-hunspell
       - joystick
-      - kerberos-tickets
       - login-session-observe
       - network
       - network-observe
@@ -114,7 +113,6 @@ apps:
       - host-hunspell
       - host-usr-share-hunspell
       - joystick
-      - kerberos-tickets
       - login-session-observe
       - network
       - network-observe
