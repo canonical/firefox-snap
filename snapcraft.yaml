@@ -193,7 +193,7 @@ parts:
       i=0
       until wget -cO llvm.tar.xz $ROOT/$BINARIES_BASENAME-$BINARIES_SUFFIX; do
         i=$((i+1))
-        test [ "$i" = 6 ] && exit 53
+        test "$i" = 6 && exit 53
       done
       tar -xf llvm.tar.xz
       rm llvm.tar.xz
