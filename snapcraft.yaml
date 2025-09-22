@@ -183,7 +183,7 @@ parts:
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         BINARIES_SUFFIX=x86_64-linux-gnu-ubuntu-22.04.tar.xz
       elif [ $CRAFT_TARGET_ARCH = "armhf" ]; then
-        BINARIES_SUFFIX=armv7a-linux-gnueabihf.tar.xz
+        BINARIES_SUFFIX=armv7a-linux-gnueabihf.tar.gz
       elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
         BINARIES_SUFFIX=aarch64-linux-gnu.tar.xz
       fi
