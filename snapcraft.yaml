@@ -585,6 +585,7 @@ parts:
           - libpci3
           - libpipewire-0.3-0t64
           - libpipewire-0.3-modules
+          - libproxy1v5
           - libspa-0.2-modules
           - libspeechd2
           - libvulkan1
@@ -597,6 +598,7 @@ parts:
           - libpci3:arm64
           - libpipewire-0.3-0t64:arm64
           - libpipewire-0.3-modules:arm64
+          - libproxy1v5:arm64
           - libspa-0.2-modules:arm64
           - libspeechd2:arm64
           - libvulkan1:arm64
@@ -609,6 +611,7 @@ parts:
           - libpci3:armhf
           - libpipewire-0.3-0t64:armhf
           - libpipewire-0.3-modules:armhf
+          - libproxy1v5:armhf
           - libspa-0.2-modules:armhf
           - libspeechd2:armhf
           - libvulkan1:armhf
@@ -621,6 +624,7 @@ parts:
         - libpci3
         - libpipewire-0.3-0t64
         - libpipewire-0.3-modules
+        - libproxy1v5
         - libspa-0.2-modules
         - libspeechd2
         - libvulkan1
