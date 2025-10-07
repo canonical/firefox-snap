@@ -13,7 +13,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 name: firefox
-version: "143.0.4-1"
+version: "144.0-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -174,7 +174,7 @@ parts:
       - make
       - wget
     build-environment:
-      - LLVM_RELEASE: "16.0.4"
+      - LLVM_RELEASE: "17.0.6"
     override-pull: |
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
@@ -182,7 +182,7 @@ parts:
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         BINARIES_SUFFIX=x86_64-linux-gnu-ubuntu-22.04.tar.xz
       elif [ $CRAFT_TARGET_ARCH = "armhf" ]; then
-        BINARIES_SUFFIX=armv7a-linux-gnueabihf.tar.xz
+        BINARIES_SUFFIX=armv7a-linux-gnueabihf.tar.gz
       elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
         BINARIES_SUFFIX=aarch64-linux-gnu.tar.xz
       fi
