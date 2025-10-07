@@ -348,7 +348,11 @@ parts:
         # xvfb is only needed when doing a PGO-enabled build
         xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build -j$CRAFT_PARALLEL_BUILD_COUNT
       else
-        $MACH build -j$CRAFT_PARALLEL_BUILD_COUNT
+        if [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+          $MACH build -j1
+        else
+          $MACH build -j$CRAFT_PARALLEL_BUILD_COUNT
+        fi
       fi
       if [ $BUILD_DBGSYMS = "true" ]; then
         DUMP_SYMS=$CRAFT_STAGE/usr/bin/dump_syms $MACH buildsymbols
