@@ -247,21 +247,24 @@ parts:
     override-build: |
       craftctl default
 
-      for i in /usr/bin/llvm-*-18; do
-        ln -sf "$i" "${i%-18}" || :
+      for i in /usr/bin/llvm-*-18 \
+               /usr/bin/lld-18 \
+               /usr/bin/lld-link-18 \
+               /usr/bin/ld.lld-18 \
+               /usr/bin/wasm-ld-18 \
+               /usr/bin/lld-18 \
+               /usr/bin/clang-18 \
+               /usr/bin/clang++-18 \
+      ; do
+        noVers=${i%-18}
+        update-alternatives --install "$noVers" "$(basename "$noVers")" "$i" 99
       done
-      ln -sf /usr/bin/lld{-18,}      || :
-      ln -sf /usr/bin/lld-link{-18,} || :
-      ln -sf /usr/bin/ld.lld{-18,}   || :
-      ln -sf /usr/bin/wasm-ld{-18,}  || :
-      ln -sf /usr/bin/lld{-18,}      || :
-      ln -sf /usr/bin/clang{-18,}    || :
-      ln -sf /usr/bin/clang++{-18,}  || :
-      ln -sf /usr/bin/rustc{-1.82,}         || :
-      ln -sf /usr/bin/rust{-1.82,}-clang    || :
-      ln -sf /usr/bin/rust{-1.82,}-lld      || :
-      ln -sf /usr/bin/rust{-1.82,}-llvm-dwp || :
-      ln -sf /usr/bin/cargo{-1.82,}         || :
+      for i in /usr/bin/rustc-1.82 \
+               /usr/bin/cargo-1.82 \
+      ; do
+        noVers=${i/-1.82/}
+        update-alternatives --install $noVers "$(basename "$noVers")" "$i" 99
+      done
 
       cargo install cbindgen
       # Needed until the Gnome SDK is promoted to stable for RISC-V.
