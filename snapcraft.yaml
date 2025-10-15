@@ -172,16 +172,16 @@ parts:
       - make
       - wget
     build-environment:
-      - LLVM_RELEASE: "16.0.4"
+      - LLVM_RELEASE: "17.0.6"
     override-pull: |
       ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
       # Download the binaries
       BINARIES_BASENAME=clang+llvm-$LLVM_RELEASE
-      if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
+      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         BINARIES_SUFFIX=x86_64-linux-gnu-ubuntu-22.04.tar.xz
-      elif [ $CRAFT_ARCH_BUILD_FOR = "armhf" ]; then
-        BINARIES_SUFFIX=armv7a-linux-gnueabihf.tar.xz
-      elif [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
+      elif [ $CRAFT_TARGET_ARCH = "armhf" ]; then
+        BINARIES_SUFFIX=armv7a-linux-gnueabihf.tar.gz
+      elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
         BINARIES_SUFFIX=aarch64-linux-gnu.tar.xz
       fi
 
