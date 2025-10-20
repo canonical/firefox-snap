@@ -247,21 +247,31 @@ parts:
     override-build: |
       craftctl default
 
-      for i in /usr/bin/llvm-*-18; do
-        ln -sf "$i" "${i%-18}" || :
+      # Firefox configure script expects unversioned binaries.
+      # Here unversioned symlinks are created to the versioned binares in
+      # /usr/bin, which we do not have permission to write to when
+      # running Snapcraft with destructive mode.
+      unvBinDir=$CRAFT_PART_BUILD/unversioned-binaries
+      export PATH=$PATH:$unvBinDir
+      mkdir -p "$unvBinDir"
+      for o in /usr/bin/llvm-*-18 \
+               /usr/bin/lld-18 \
+               /usr/bin/lld-link-18 \
+               /usr/bin/ld.lld-18 \
+               /usr/bin/wasm-ld-18 \
+               /usr/bin/lld-18 \
+               /usr/bin/clang-18 \
+               /usr/bin/clang++-18 \
+      ; do
+        b=$(basename "$o")
+        ln -sf "$o" "$unvBinDir/${b%-18}"
       done
-      ln -sf /usr/bin/lld{-18,}      || :
-      ln -sf /usr/bin/lld-link{-18,} || :
-      ln -sf /usr/bin/ld.lld{-18,}   || :
-      ln -sf /usr/bin/wasm-ld{-18,}  || :
-      ln -sf /usr/bin/lld{-18,}      || :
-      ln -sf /usr/bin/clang{-18,}    || :
-      ln -sf /usr/bin/clang++{-18,}  || :
-      ln -sf /usr/bin/rustc{-1.82,}         || :
-      ln -sf /usr/bin/rust{-1.82,}-clang    || :
-      ln -sf /usr/bin/rust{-1.82,}-lld      || :
-      ln -sf /usr/bin/rust{-1.82,}-llvm-dwp || :
-      ln -sf /usr/bin/cargo{-1.82,}         || :
+      rustv=1.82
+      ln -sf "/usr/bin/rustc-${rustv}" "$unvBinDir/rustc"
+      ln -sf "/usr/bin/rust-${rustv}-clang" "$unvBinDir/rust-clang"
+      ln -sf "/usr/bin/rust-${rustv}-lld" "$unvBinDir/rust-lld"
+      ln -sf "/usr/bin/rust-${rustv}-llvm-dwp" "$unvBinDir/rust-llvm-dwp"
+      ln -sf "/usr/bin/cargo-${rustv}" "$unvBinDir/cargo"
 
       cargo install cbindgen
       # Needed until the Gnome SDK is promoted to stable for RISC-V.
