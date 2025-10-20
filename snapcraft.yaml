@@ -440,6 +440,7 @@ parts:
       done
 
       MACH="/usr/bin/python3 ./mach"
+      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type beta
       if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
         # xvfb is only needed when doing a PGO-enabled build
         xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build -j$CRAFT_PARALLEL_BUILD_COUNT
@@ -458,7 +459,6 @@ parts:
       DISTRIBUTION=$CRAFT_PART_INSTALL/usr/lib/firefox/distribution
       mkdir -p $DISTRIBUTION/extensions
       cp browser/branding/official/default256.png $CRAFT_PART_INSTALL/
-      $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type beta
       if [ $BUILD_DBGSYMS = "true" ]; then
         cp obj-*/dist/firefox-*.crashreporter-symbols.zip $CRAFT_STAGE/debug-symbols/
       fi
