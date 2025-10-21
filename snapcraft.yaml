@@ -275,7 +275,9 @@ parts:
 
       cargo install cbindgen
       # Needed until the Gnome SDK is promoted to stable for RISC-V.
-      snap refresh --edge gnome-46-2404-sdk
+      if [ $CRAFT_ARCH_BUILD_FOR = "riscv64" ]; then
+        snap refresh --edge gnome-46-2404-sdk
+      fi
 
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
       BUILD_DBGSYMS=false
