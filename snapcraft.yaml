@@ -91,6 +91,7 @@ apps:
       - removable-media
       - screen-inhibit-control
       - system-packages-doc
+      - timezone-control
       - u2f-devices
       - unity7
       - upower-observe
@@ -121,6 +122,7 @@ apps:
       - removable-media
       - screen-inhibit-control
       - system-packages-doc
+      - timezone-control
       - u2f-devices
       - unity7
       - upower-observe
