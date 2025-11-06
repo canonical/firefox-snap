@@ -448,7 +448,7 @@ parts:
         xvfb-run '--server-args=-screen 0 1920x1080x24' $MACH build -j$CRAFT_PARALLEL_BUILD_COUNT
       else
         if [ $CRAFT_TARGET_ARCH = "armhf" ]; then
-          $MACH build -j1
+          $MACH build -j2
         else
           $MACH build -j$CRAFT_PARALLEL_BUILD_COUNT
         fi
