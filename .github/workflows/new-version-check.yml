@@ -58,7 +58,7 @@ jobs:
   check-new-esr:
     strategy:
       matrix:
-        esr-branch: [esr, esr-140]
+        esr-branch: [esr]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
