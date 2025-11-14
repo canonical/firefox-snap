@@ -64,6 +64,7 @@ apps:
       - network
       - network-observe
       - opengl
+      - password-manager-service
       - pcscd
       - removable-media
       - screen-inhibit-control
@@ -95,6 +96,7 @@ apps:
       - network
       - network-observe
       - opengl
+      - password-manager-service
       - pcscd
       - removable-media
       - screen-inhibit-control
