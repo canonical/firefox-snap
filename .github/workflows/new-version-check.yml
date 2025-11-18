@@ -23,10 +23,13 @@ on:
 jobs:
   check-new-stable:
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        stable-branch: [stable, stable-core24]
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: stable
+          ref: ${{matrix.stable-branch}}
       - name: Extract current version
         run: ./.github/scripts/extract-current-version.sh
       - name: Install python deps
@@ -88,10 +91,13 @@ jobs:
           fi
   check-new-beta:
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        beta-branch: [beta, beta-core24]
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: beta
+          ref: ${{matrix.beta-branch}}
       - name: Extract current version
         run: ./.github/scripts/extract-current-version.sh
       - name: Install python deps
