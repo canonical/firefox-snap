@@ -59,6 +59,7 @@ apps:
       - host-hunspell
       - host-usr-share-hunspell
       - joystick
+      - kerberos-tickets
       - login-session-observe
       - mount-observe
       - network
@@ -92,6 +93,7 @@ apps:
       - host-hunspell
       - host-usr-share-hunspell
       - joystick
+      - kerberos-tickets
       - login-session-observe
       - network
       - network-observe
