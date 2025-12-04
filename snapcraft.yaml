@@ -437,13 +437,6 @@ parts:
       if [ $CRAFT_ARCH_BUILD_ON = "arm64" ]; then
         patch -p1 < $CRAFT_PROJECT_DIR/patches/mozilla-reduce-rust-debuginfo.patch
       fi
-      # Hardware is too limited on Launchpad amd64 builders,
-      # so use thin rather than fat LTO. You can attempt to drop this when
-      # amd64 builders have at least 32 GB of memory as per
-      # https://help.launchpad.net/Packaging/BuilderSpecs
-      if [ $CRAFT_ARCH_BUILD_ON != "arm64" ]; then
-        patch -p1 < $CRAFT_PROJECT_DIR/patches/thin-lto.patch
-      fi
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       echo "export MOZ_SOURCE_REPO=${REPO}" >> $MOZCONFIG
       echo "export MOZ_SOURCE_CHANGESET=${REVISION}" >> $MOZCONFIG
