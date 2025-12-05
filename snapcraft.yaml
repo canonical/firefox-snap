@@ -458,6 +458,7 @@ parts:
         echo "ac_add_options --enable-linker=lld" >> $MOZCONFIG
         echo "ac_add_options MOZ_PGO=1" >> $MOZCONFIG
       fi
+      echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
       echo "ac_add_options --prefix=$CRAFT_PART_INSTALL/usr" >> $MOZCONFIG
       if [ $CRAFT_ARCH_BUILD_ON != $CRAFT_ARCH_BUILD_FOR ]; then
         if [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
