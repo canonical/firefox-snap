@@ -1,4 +1,3 @@
 native-messaging-portal.patch
 no-exceptions.patch
 webrtc-riscv.patch
-D274753.diff
