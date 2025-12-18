@@ -89,6 +89,7 @@ apps:
       - pcscd
       - removable-media
       - screen-inhibit-control
+      - system-observe
       - system-packages-doc
       - timezone-control
       - u2f-devices
