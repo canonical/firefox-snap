@@ -280,7 +280,11 @@ parts:
       cargo install cbindgen
 
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
-      BUILD_DBGSYMS=true
+      BUILD_DBGSYMS=false
+      # https://bugzilla.mozilla.org/show_bug.cgi?id=1980339
+      if [ $CRAFT_ARCH_BUILD_FOR != "riscv64" ]; then
+        BUILD_DBGSYMS=true
+      fi
       # GitHub Actions is limited to 2 CPUs and 7GB RAM, and
       # too much debug info from Rust will make gkrust linkage fail.
       # Same goes for arm64 builds on Launchpad.  It seems we can't
