@@ -210,8 +210,8 @@ parts:
       - hunspell
       - mozconfig
     build-packages:
-      - rustc-1.82
-      - cargo-1.82
+      - rustc-1.89
+      - cargo-1.89
       - cmake
       - clang-18
       - lld-18
@@ -270,7 +270,7 @@ parts:
         b=$(basename "$o")
         ln -sf "$o" "$unvBinDir/${b%-18}"
       done
-      rustv=1.82
+      rustv=1.89
       ln -sf "/usr/bin/rustc-${rustv}" "$unvBinDir/rustc"
       ln -sf "/usr/bin/rust-${rustv}-clang" "$unvBinDir/rust-clang"
       ln -sf "/usr/bin/rust-${rustv}-lld" "$unvBinDir/rust-lld"
