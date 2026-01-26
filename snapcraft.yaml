@@ -168,7 +168,7 @@ parts:
     build-packages:
       - wget
     override-pull: |
-      REQUIRED_RUST_VERSION=1.89.0
+      REQUIRED_RUST_VERSION=1.90.0
       RUST_PREFIX=rust-$REQUIRED_RUST_VERSION
       STD_PREFIX=rust-std-$REQUIRED_RUST_VERSION
       ROOT=https://static.rust-lang.org/dist/$RUST_PREFIX
