@@ -366,6 +366,16 @@ parts:
       cp toolkit/crashreporter/tools/upload_symbols.py $CRAFT_STAGE/debug-symbols/
     override-build: |
       craftctl default
+
+      # Remove .gitmodules from Cargo checksums.
+      # https://bugzilla.mozilla.org/show_bug.cgi?id=2006630
+      find . -name '.cargo-checksum.json' -exec sh -c '
+        for f; do
+          cp "$f" "$f.bak"
+          jq . "$f.bak" | grep -vF .gitmodules > "$f"
+        done
+      ' _ {} + || :
+
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
       BUILD_DBGSYMS=true
       # GitHub Actions is limited to 2 CPUs and 7GB RAM, and
