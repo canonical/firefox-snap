@@ -138,10 +138,29 @@ layout:
     bind-file: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so
 
 parts:
-  dump-syms:
+  rust:
     plugin: nil
     build-packages:
-      - cargo-1.82
+      - wget
+    override-pull: |
+      REQUIRED_RUST_VERSION=1.90.0
+      ROOT=https://static.rust-lang.org/dist/rust-$REQUIRED_RUST_VERSION
+      if [ $CRAFT_TARGET_ARCH = "amd64" ]; then
+        BINARIES_SUFFIX=x86_64-unknown-linux-gnu
+      elif [ $CRAFT_TARGET_ARCH = "arm64" ]; then
+        BINARIES_SUFFIX=aarch64-unknown-linux-gnu
+      elif [ $CRAFT_ARCH_BUILD_FOR = "riscv64" ]; then
+        BINARIES_SUFFIX=riscv64gc-unknown-linux-gnu
+      fi
+      wget -O - $ROOT-$BINARIES_SUFFIX.tar.gz | tar -x -z --strip-components=1
+      ./install.sh --prefix=/usr --destdir=$CRAFT_STAGE
+    override-prime: ''
+
+  dump-syms:
+    plugin: nil
+    after:
+      - rust
+    build-packages:
       - curl
       - git
       - jq
@@ -163,7 +182,7 @@ parts:
     override-build: |
       craftctl default
       if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ] || [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
-        cargo-1.82 build --release
+        cargo build --release
         mkdir -p $CRAFT_STAGE/usr/bin/
         cp target/release/dump_syms $CRAFT_STAGE/usr/bin/
       fi
@@ -209,9 +228,8 @@ parts:
       - firefox-langpacks
       - hunspell
       - mozconfig
+      - rust
     build-packages:
-      - rustc-1.89
-      - cargo-1.89
       - cmake
       - clang-18
       - lld-18
@@ -270,12 +288,6 @@ parts:
         b=$(basename "$o")
         ln -sf "$o" "$unvBinDir/${b%-18}"
       done
-      rustv=1.89
-      ln -sf "/usr/bin/rustc-${rustv}" "$unvBinDir/rustc"
-      ln -sf "/usr/bin/rust-${rustv}-clang" "$unvBinDir/rust-clang"
-      ln -sf "/usr/bin/rust-${rustv}-lld" "$unvBinDir/rust-lld"
-      ln -sf "/usr/bin/rust-${rustv}-llvm-dwp" "$unvBinDir/rust-llvm-dwp"
-      ln -sf "/usr/bin/cargo-${rustv}" "$unvBinDir/cargo"
 
       cargo install cbindgen
 
