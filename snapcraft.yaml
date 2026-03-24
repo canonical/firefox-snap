@@ -143,7 +143,7 @@ parts:
   dump-syms:
     plugin: nil
     build-packages:
-      - cargo-1.82
+      - cargo-1.91
       - curl
       - git
       - jq
@@ -165,7 +165,7 @@ parts:
     override-build: |
       craftctl default
       if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ] || [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
-        cargo-1.82 build --release
+        cargo-1.91 build --release
         mkdir -p $CRAFT_STAGE/usr/bin/
         cp target/release/dump_syms $CRAFT_STAGE/usr/bin/
       fi
