@@ -13,16 +13,16 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 name: firefox
-version: "149.0.2-1"
+version: "150.0-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
 grade: stable
 base: core24
+compression: lzo
 source-code: https://github.com/canonical/firefox-snap
 assumes:
   - snapd2.54 # for mount-control
-compression: lzo
 
 apps:
   firefox:
