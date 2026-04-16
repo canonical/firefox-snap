@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        stable-branch: [stable, stable-core24]
+        stable-branch: [stable]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -93,7 +93,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        beta-branch: [beta, beta-core24]
+        beta-branch: [beta]
     steps:
       - uses: actions/checkout@v4
         with:
