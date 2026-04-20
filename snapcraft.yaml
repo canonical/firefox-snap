@@ -582,3 +582,5 @@ slots:
 hooks:
   post-refresh:
     plugs: [host-usr-share-hunspell]
+  install:
+    plugs: [host-usr-share-hunspell]
