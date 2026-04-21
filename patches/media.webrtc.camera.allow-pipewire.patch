@@ -1,0 +1,9 @@
+Description: Make media.webrtc.camera.allow-pipewire true by default.
+Bug-Ubuntu: https://launchpad.net/bugs/2136591
+
+--- a/browser/branding/official/pref/firefox-branding.js
++++ b/browser/branding/official/pref/firefox-branding.js
+@@ -1,2 +1,3 @@
++pref("media.webrtc.camera.allow-pipewire", true);
+ /* This Source Code Form is subject to the terms of the Mozilla Public
+  * License, v. 2.0. If a copy of the MPL was not distributed with this
