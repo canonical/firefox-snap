@@ -56,7 +56,7 @@ apps:
       DICPATH: "$SNAP_COMMON/snap-hunspell"
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
-      PIPEWIRE_CONFIG_NAME: "$SNAP/usr/share/pipewire/pipewire.conf"
+      PIPEWIRE_CONFIG_NAME: client.conf
       PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/pipewire-0.3"
       SPA_PLUGIN_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/spa-0.2"
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
