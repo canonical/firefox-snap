@@ -57,7 +57,6 @@ apps:
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: client.conf
-      PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/pipewire-0.3"
       SPA_PLUGIN_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/spa-0.2"
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
       MOZ_DBUS_APP_NAME: "firefox_nightly"
@@ -543,8 +542,6 @@ parts:
           - libasound2t64
           - libcurl4t64
           - libpci3
-          - libpipewire-0.3-0t64
-          - libpipewire-0.3-modules
           - libproxy1v5
           - libspa-0.2-modules
           - libspeechd2
@@ -554,8 +551,6 @@ parts:
           - libasound2t64:arm64
           - libcurl4t64:arm64
           - libpci3:arm64
-          - libpipewire-0.3-0t64:arm64
-          - libpipewire-0.3-modules:arm64
           - libproxy1v5:arm64
           - libspa-0.2-modules:arm64
           - libspeechd2:arm64
@@ -565,15 +560,11 @@ parts:
         - libasound2t64
         - libcurl4t64
         - libpci3
-        - libpipewire-0.3-0t64
-        - libpipewire-0.3-modules
         - libproxy1v5
         - libspa-0.2-modules
         - libspeechd2
         - libxt6t64
         - opensc-pkcs11
-      - pipewire-bin
-      - pipewire-pulse
     prime:
       - default256.png
       - firefox.desktop
@@ -594,7 +585,6 @@ parts:
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libnettle.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libnghttp2.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libpci.so.*
-      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libpipewire*.so*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libroken.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/librtmp.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libsasl2.so.*
@@ -603,10 +593,8 @@ parts:
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libssl.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libwind.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libXt.so.*
-      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/pipewire-*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/spa-*
       - usr/share/alsa
-      - usr/share/pipewire
       # Workaround for LP: #2016358 (see the 'override-stage' above).
       - gnome-platform
       - data-dir/icons
