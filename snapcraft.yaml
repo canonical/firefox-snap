@@ -156,8 +156,6 @@ plugs:
     read: all
 
 layout:
-  /usr/share/alsa:
-    bind: $SNAP/usr/share/alsa
   /usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so:
     bind-file: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so
 
@@ -539,31 +537,16 @@ parts:
     stage-packages:
       - on amd64:
         - to amd64:
-          - libasound2t64
-          - libcurl4t64
           - libpci3
-          - libproxy1v5
-          - libspa-0.2-modules
           - libspeechd2
-          - libxt6t64
           - opensc-pkcs11
         - to arm64:
-          - libasound2t64:arm64
-          - libcurl4t64:arm64
           - libpci3:arm64
-          - libproxy1v5:arm64
-          - libspa-0.2-modules:arm64
           - libspeechd2:arm64
-          - libxt6t64:arm64
           - opensc-pkcs11:arm64
       - else:
-        - libasound2t64
-        - libcurl4t64
         - libpci3
-        - libproxy1v5
-        - libspa-0.2-modules
         - libspeechd2
-        - libxt6t64
         - opensc-pkcs11
     prime:
       - default256.png
@@ -572,7 +555,6 @@ parts:
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/pkcs11/opensc-pkcs11.so
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libasn1.so.*
-      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libcurl.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libgssapi.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libhcrypto.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libheimbase.so.*
@@ -584,7 +566,6 @@ parts:
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libldap_r-2.4.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libnettle.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libnghttp2.so.*
-      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libpci.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libroken.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/librtmp.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libsasl2.so.*
@@ -592,9 +573,6 @@ parts:
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libssh.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libssl.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libwind.so.*
-      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libXt.so.*
-      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/spa-*
-      - usr/share/alsa
       # Workaround for LP: #2016358 (see the 'override-stage' above).
       - gnome-platform
       - data-dir/icons
