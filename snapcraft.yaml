@@ -248,7 +248,7 @@ parts:
       ROOT=https://ftp.mozilla.org/pub/firefox/candidates/$VERSION-candidates/build$BUILD
       wget -O - $ROOT/source/firefox-$VERSION.source.tar.xz | tar -x --xz --strip-components=1
       # Let this run at the start, for Risc LP proxy timeout
-      python3 ./mach repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type beta
+      python3 ./mach repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type release --wmclass firefox_firefox
       mkdir -p $CRAFT_STAGE/debug-symbols
       cp toolkit/crashreporter/tools/upload_symbols.py $CRAFT_STAGE/debug-symbols/
     override-build: |
