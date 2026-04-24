@@ -1,0 +1,10 @@
+This is the source code for the Firefox snap[1].
+
+Builds are in Launchpad[2].
+
+For merge requests, please target the nightly channel if you have no particular
+reason to do otherwise.
+
+[1]https://snapcraft.io/firefox
+[2]https://launchpad.net/~mozilla-snaps/+snaps
+
