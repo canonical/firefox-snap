@@ -57,7 +57,6 @@ apps:
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: client.conf
-      SPA_PLUGIN_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/spa-0.2"
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
       MOZ_DBUS_APP_NAME: "firefox_nightly"
       MOZ_APP_REMOTINGNAME: "firefox_firefox"
