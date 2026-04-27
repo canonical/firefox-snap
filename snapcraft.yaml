@@ -218,6 +218,7 @@ parts:
       - file
       - git
       - g++
+      - libasound2-dev
       - libc++-18-dev-wasm32
       - libc++abi-18-dev
       - libc++abi-18-dev-wasm32
