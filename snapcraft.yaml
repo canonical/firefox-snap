@@ -36,8 +36,6 @@ apps:
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: client.conf
-      PIPEWIRE_MODULE_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/pipewire-0.3"
-      SPA_PLUGIN_DIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/spa-0.2"
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
       MOZ_APP_REMOTINGNAME: "firefox_firefox"
       MOZ_LEGACY_HOME: 1
@@ -133,8 +131,6 @@ plugs:
     - /var/lib/snapd/hostfs/usr/share/hunspell
 
 layout:
-  /usr/share/alsa:
-    bind: $SNAP/usr/share/alsa
   /usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so:
     bind-file: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so
 
@@ -376,16 +372,8 @@ parts:
       mkdir $CRAFT_PART_INSTALL/{gpu-2404,data-dir,data-dir/{icons,sounds,themes}}
       craftctl default
     stage-packages:
-      - libasound2t64
-      - libcurl4t64
       - libpci3
-      - libpipewire-0.3-0t64
-      - libpipewire-0.3-modules
-      - libspa-0.2-modules
       - libspeechd2
-      - libxt6t64
-      - pipewire-bin
-      - pipewire-pulse
       - opensc-pkcs11
     prime:
       - default256.png
@@ -394,7 +382,6 @@ parts:
       - usr/lib/*/opensc-pkcs11.so
       - usr/lib/*/pkcs11/opensc-pkcs11.so
       - usr/lib/*/libasn1.so.*
-      - usr/lib/*/libcurl.so.*
       - usr/lib/*/libgssapi.so.*
       - usr/lib/*/libhcrypto.so.*
       - usr/lib/*/libheimbase.so.*
@@ -407,7 +394,6 @@ parts:
       - usr/lib/*/libnettle.so.*
       - usr/lib/*/libnghttp2.so.*
       - usr/lib/*/libpci.so.*
-      - usr/lib/*/libpipewire*.so*
       - usr/lib/*/libroken.so.*
       - usr/lib/*/librtmp.so.*
       - usr/lib/*/libsasl2.so.*
@@ -415,11 +401,6 @@ parts:
       - usr/lib/*/libssh.so.*
       - usr/lib/*/libssl.so.*
       - usr/lib/*/libwind.so.*
-      - usr/lib/*/libXt.so.*
-      - usr/lib/*/pipewire-*
-      - usr/lib/*/spa-*
-      - usr/share/alsa
-      - usr/share/pipewire
       # Workaround for LP: #2016358 (see the 'override-stage' above).
       - gpu-2404
       - data-dir/icons
