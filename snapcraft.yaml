@@ -24,6 +24,15 @@ source-code: https://github.com/canonical/firefox-snap
 assumes:
   - snapd2.54 # for mount-control
 
+package-repositories:
+  - type: apt
+    components:
+      - main
+    suites:
+      - noble
+    key-id: 4EB2C7398E89DCF16E3229CCA0B67CFFA7B4006D
+    url: http://ppa.launchpad.net/nteodosio/krb5/ubuntu
+
 apps:
   firefox:
     command: firefox.launcher
@@ -375,6 +384,9 @@ parts:
       - libpci3
       - libspeechd2
       - opensc-pkcs11
+      - libgssapi-krb5-2
+      - libkrb5-3
+      - libkrb5support0
     prime:
       - default256.png
       - firefox.desktop
@@ -382,13 +394,13 @@ parts:
       - usr/lib/*/opensc-pkcs11.so
       - usr/lib/*/pkcs11/opensc-pkcs11.so
       - usr/lib/*/libasn1.so.*
-      - usr/lib/*/libgssapi.so.*
       - usr/lib/*/libhcrypto.so.*
       - usr/lib/*/libheimbase.so.*
       - usr/lib/*/libheimntlm.so.*
       - usr/lib/*/libhogweed.so.*
       - usr/lib/*/libhx509.so.*
-      - usr/lib/*/libkrb5.so.*
+      - usr/lib/*/libgssapi*
+      - usr/lib/*/*krb5*
       - usr/lib/*/liblber-2.4.so.*
       - usr/lib/*/libldap_r-2.4.so.*
       - usr/lib/*/libnettle.so.*
