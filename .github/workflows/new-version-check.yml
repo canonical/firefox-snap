@@ -20,6 +20,9 @@ on:
     - cron: '58 * * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   check-new-stable:
     runs-on: ubuntu-24.04
