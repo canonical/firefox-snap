@@ -20,6 +20,9 @@ on:
     - cron: '17 5 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   check-new-rust-requirement-beta:
     runs-on: ubuntu-24.04
