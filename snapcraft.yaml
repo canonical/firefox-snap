@@ -24,15 +24,6 @@ source-code: https://github.com/canonical/firefox-snap
 assumes:
   - snapd2.54 # for mount-control
 
-package-repositories:
-  - type: apt
-    components:
-      - main
-    suites:
-      - noble
-    key-id: 4EB2C7398E89DCF16E3229CCA0B67CFFA7B4006D
-    url: http://ppa.launchpad.net/nteodosio/krb5/ubuntu
-
 apps:
   firefox:
     command: firefox.launcher
