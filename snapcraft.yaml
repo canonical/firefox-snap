@@ -630,7 +630,12 @@ parts:
 
       # Prime its resultant relevant libraries
       mkdir -p "$CRAFT_PRIME/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR"
-      cp -d build/lib/*krb5*.so* "$CRAFT_PRIME/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR"
+      cp -L build/lib/*krb5*.so* "$CRAFT_PRIME/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR"
+      # Replace duplicates with symlinks, e.g. libkrb5.so.3 -> libkrb5.so
+      for f in "$CRAFT_PRIME/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR"/*krb5*.so*; do
+        ln -sf "${f%.so*}.so" "$f" || :
+        #                          ^^^^ Don't error if they are the same file,
+      done
 
   launcher:
     plugin: nil
