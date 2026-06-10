@@ -275,7 +275,7 @@ parts:
       ln -sf "/usr/bin/rust-${rustv}-lld" "$unvBinDir/rust-lld"
       ln -sf "/usr/bin/rust-${rustv}-llvm-dwp" "$unvBinDir/rust-llvm-dwp"
       ln -sf "/usr/bin/cargo-${rustv}" "$unvBinDir/cargo"
-      cargo install cbindgen
+      cargo install --version 0.29.2 cbindgen
 
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
       BUILD_DBGSYMS=false
