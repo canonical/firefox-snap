@@ -15,8 +15,8 @@ Bug-Ubuntu: https://launchpad.net/bugs/2122317
 -
 +    char *snap_ok_dir = "/etc/krb5.conf.d";
 +    if (strncmp(dirname, snap_ok_dir, strlen(snap_ok_dir)) != 0) {
-+        fprintf(stderr, "Kerberos: Ignoring directive 'includedir %s', as %s is
-+                not reachable in the snap sandbox.", dirname, dirname);
++        fprintf(stderr, "Kerberos: Ignoring directive 'includedir %s', as %s is"
++                "not reachable in the snap sandbox.", dirname, dirname);
 +        return 0;
 +    }
      if (k5_dir_filenames(dirname, &fnames) != 0)
