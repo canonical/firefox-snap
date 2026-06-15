@@ -612,6 +612,7 @@ parts:
     build-packages:
       - ubuntu-dev-tools
       - python3-lxml # Missing from Krb5 build-dependencies?
+      - sudo # For Mozilla's docker build
     build-environment:
       - DEB_BUILD_OPTIONS: nodoc
       # Delete Gnome extension's injections in this variable
@@ -624,7 +625,7 @@ parts:
       releasePocket=$(lsb_release -c | cut -f2)
       pull-lp-source krb5 "$releasePocket"
       cd krb5*/
-      apt build-dep -y .
+      sudo apt build-dep -y . # sudo needed in Mozilla's docker build
       patch -p1 < "$CRAFT_PROJECT_DIR/patches/external/krb5:ignore-failed-includedirs"
       ./debian/rules build
 
