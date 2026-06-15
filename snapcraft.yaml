@@ -277,17 +277,6 @@ parts:
       ln -sf "/usr/bin/rust-${rustv}-llvm-dwp" "$unvBinDir/rust-llvm-dwp"
       ln -sf "/usr/bin/cargo-${rustv}" "$unvBinDir/cargo"
 
-      # Remove .gitmodules from Cargo checksums.
-      # https://bugzilla.mozilla.org/show_bug.cgi?id=2006630
-      find . -name '.cargo-checksum.json' -exec sh -c '
-        for f; do
-          cp "$f" "$f.bak"
-          jq . "$f.bak" | grep -vF .gitmodules > "$f"
-        done
-      ' _ {} + || :
-
-      cargo install --version 0.29.2 cbindgen
-
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
       BUILD_DBGSYMS=false
       # https://bugzilla.mozilla.org/show_bug.cgi?id=1980339
