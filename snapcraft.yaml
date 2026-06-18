@@ -203,6 +203,7 @@ parts:
       - apikeys
       - distribution
       - dump-syms
+      - kerberos
       - ffmpeg
       - firefox-langpacks
       - hunspell
