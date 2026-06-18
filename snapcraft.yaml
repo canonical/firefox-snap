@@ -359,6 +359,7 @@ parts:
       - clang
       - distribution
       - dump-syms
+      - kerberos
       - ffmpeg
       - firefox-langpacks
       - hunspell
