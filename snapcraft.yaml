@@ -617,13 +617,16 @@ parts:
       - DEB_BUILD_OPTIONS: nodoc
       # Delete Gnome extension's injections in this variable
       - PKG_CONFIG_PATH: $CRAFT_STAGE/usr/share/pkgconfig
+    override-pull: |
+      # Fetch Kerberos from release matching current base snap
+      releasePocket=$(lsb_release -c | cut -f2)
+      pull-lp-source krb5 "$releasePocket"
     override-build: |
       # Delete Gnome extension's injections in this variable
       export PATH=${PATH#/snap*:}
 
-      # Fetch, patch and build Kerberos
-      releasePocket=$(lsb_release -c | cut -f2)
-      pull-lp-source krb5 "$releasePocket"
+      # Apply our patch and build
+      cp -r $CRAFT_PART_SRC/krb5* .
       cd krb5*/
       sudo apt build-dep -y . # sudo needed in Mozilla's docker build
       patch -p1 < "$CRAFT_PROJECT_DIR/patches/external/krb5:ignore-failed-includedirs"
