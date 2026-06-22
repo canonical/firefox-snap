@@ -431,6 +431,12 @@ parts:
       # content interface, while a proper fix is implemented in snapd.
       # Thanks to James Henstridge.
       mkdir $CRAFT_PART_INSTALL/{gpu-2404,data-dir,data-dir/{icons,sounds,themes}}
+
+      # Hack to avoid out of space condition when building. This removes the
+      # sources of this part. FIXME when Launchpad builders get more space
+      # (currently 80 GB: https://help.launchpad.net/Packaging/BuilderSpecs)
+      rm -rf $CRAFT_PART_SRC
+
       craftctl default
     stage-packages:
       - libpci3
