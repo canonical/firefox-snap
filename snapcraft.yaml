@@ -712,6 +712,11 @@ parts:
         - to amd64:
           - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libvpl.so.*
 
+  # Obscure API keys. This is just to give scrapers a hard time; It is therefore
+  # no problem that .passphrase is public.
+  #
+  # To update an API key, execute the GPG command to generate the apikeys file.
+  # Update the desired key manually, encrypt and commit the new .apikeys file.
   apikeys:
     plugin: nil
     after:
