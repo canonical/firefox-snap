@@ -279,6 +279,13 @@ parts:
       ln -sf "/usr/bin/cargo-${rustv}" "$unvBinDir/cargo"
       cargo install cbindgen
 
+      # Fixes configuration error that started after Libclang version 19:
+      # "Could not find libclang to generate rust bindings for C/C++."
+      export MOZCONFIG="$CRAFT_STAGE/mozconfig"
+      ln -sf /usr/lib/llvm-19/lib/libclang-19.so.1 \
+             /usr/lib/llvm-19/lib/libclang.so.1
+      echo "ac_add_options --with-libclang-path=/usr/lib/llvm-19/lib/" >> $MOZCONFIG
+
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
       BUILD_DBGSYMS=false
       # https://bugzilla.mozilla.org/show_bug.cgi?id=1980339
@@ -300,7 +307,6 @@ parts:
       if [ $CRAFT_ARCH_BUILD_FOR != "arm64" ]; then
         patch -p1 < $CRAFT_PROJECT_DIR/patches/thin-lto.patch
       fi
-      export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       if [ $BUILD_DBGSYMS = "true" ]; then
         echo "ac_add_options --enable-debug-symbols" >> $MOZCONFIG
       else
