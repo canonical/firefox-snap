@@ -159,101 +159,10 @@ layout:
     bind-file: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so
 
 parts:
-  rust:
-    plugin: nil
-    build-packages:
-      - wget
-    override-pull: |
-      REQUIRED_RUST_VERSION=1.90.0
-      RUST_PREFIX=rust-$REQUIRED_RUST_VERSION
-      STD_PREFIX=rust-std-$REQUIRED_RUST_VERSION
-      ROOT=https://static.rust-lang.org/dist/$RUST_PREFIX
-      ROOT_STD=https://static.rust-lang.org/dist/$STD_PREFIX
-      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
-        BINARIES_SUFFIX=x86_64-unknown-linux-gnu
-      elif [ $CRAFT_ARCH_BUILD_ON = "arm64" ]; then
-        BINARIES_SUFFIX=aarch64-unknown-linux-gnu
-      elif [ $CRAFT_ARCH_BUILD_ON = "riscv64" ]; then
-        BINARIES_SUFFIX=riscv64gc-unknown-linux-gnu
-      fi
-      wget -O - $ROOT-$BINARIES_SUFFIX.tar.gz | tar -x -z
-      pushd $RUST_PREFIX-$BINARIES_SUFFIX
-        ./install.sh --prefix=/usr --destdir=$CRAFT_STAGE
-      popd
-
-      if [ $CRAFT_ARCH_BUILD_ON != $CRAFT_ARCH_BUILD_FOR ]; then
-        if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
-          STD_BINARIES_SUFFIX=x86_64-unknown-linux-gnu
-        elif [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
-          STD_BINARIES_SUFFIX=aarch64-unknown-linux-gnu
-        fi
-        wget -O - $ROOT_STD-$STD_BINARIES_SUFFIX.tar.gz | tar -x -z
-        pushd $STD_PREFIX-$STD_BINARIES_SUFFIX
-          ./install.sh --prefix=/usr --destdir=$CRAFT_STAGE
-        popd
-      fi
-    override-prime: ''
-
-  cbindgen:
-    plugin: nil
-    after:
-      - rust
-    override-build: |
-      craftctl default
-      $CRAFT_STAGE/usr/bin/cargo install cbindgen
-    override-prime: ''
-
-  clang:
-    plugin: nil
-    build-packages:
-      - binutils-dev
-      - cmake
-      - libncurses-dev
-      - make
-      - wget
-    build-environment:
-      - LLVM_RELEASE: "19.1.7"
-    override-pull: |
-      ROOT=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_RELEASE
-      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
-        url="$ROOT/LLVM-$LLVM_RELEASE-Linux-X64.tar.xz"
-      elif [ $CRAFT_ARCH_BUILD_ON = "arm64" ]; then
-        url="$ROOT/clang+llvm-$LLVM_RELEASE-aarch64-linux-gnu.tar.xz"
-      fi
-      # Github introduced a time-out that causes this pull to fail in ARMv8
-      # Launchpad builders. Use -c to continue a failed pull. Give up after
-      # 6 attempts.
-      i=0
-      until wget -cO llvm.tar.xz "$url"; do
-        i=$((i+1))
-        test "$i" = 6 && exit 53
-      done
-      tar -xf llvm.tar.xz
-      rm llvm.tar.xz
-
-      # And cmake-$LLVM_RELEASE.src needed on LLVM >= 15.0.0
-      wget -O - "$ROOT/cmake-$LLVM_RELEASE.src.tar.xz" | tar -x --xz
-      mv cmake-$LLVM_RELEASE.src cmake
-      # And the sources to build LLVMgold.so, which isn't distributed in a binary form
-      wget -O - "$ROOT/llvm-$LLVM_RELEASE.src.tar.xz" | tar -x --xz
-    override-build: |
-      craftctl default
-      cd llvm-$LLVM_RELEASE.src
-      mkdir build
-      cd build
-      cmake -DLLVM_BINUTILS_INCDIR=/usr/include -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CRAFT_PART_INSTALL/usr ..
-      make -j$CRAFT_PARALLEL_BUILD_COUNT install-LLVMgold-stripped
-    override-stage: |
-      craftctl default
-      mkdir -p usr
-      cp -R $CRAFT_PART_BUILD/clang+llvm-$LLVM_RELEASE-*/* usr/
-    override-prime: ''
-
   dump-syms:
     plugin: nil
-    after:
-      - rust
     build-packages:
+      - cargo-1.91
       - curl
       - git
       - jq
@@ -269,7 +178,7 @@ parts:
       git clone "${REPO}" . && git checkout "${SHA1}"
     override-build: |
       craftctl default
-      $CRAFT_STAGE/usr/bin/cargo build --release
+      cargo-1.91 build --release
       mkdir -p $CRAFT_STAGE/usr/bin/
       cp target/release/dump_syms $CRAFT_STAGE/usr/bin/
 
@@ -292,46 +201,6 @@ parts:
     prime:
       - usr/share/hunspell
 
-  # We use the amd64 binary for all architectures since the used files are said
-  # to be arch-independent.
-  wasi-sdk:
-    plugin: nil
-    after:
-      - clang
-    build-packages:
-      - wget
-    build-environment:
-      - WASI_BRANCH: "15"
-      - WASI_RELEASE: "15.0"
-    override-pull: |
-      ROOT=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$WASI_BRANCH
-      wget $ROOT/wasi-sysroot-$WASI_RELEASE.tar.gz
-      wget $ROOT/libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
-    override-build: |
-      craftctl default
-      tar -C $CRAFT_STAGE -xf wasi-sysroot-$WASI_RELEASE.tar.gz
-      tar -C $CRAFT_STAGE/usr/lib/clang/* -xf libclang_rt.builtins-wasm32-wasi-$WASI_RELEASE.tar.gz
-    override-prime: ''
-
-  nodejs:
-    plugin: nil
-    build-packages:
-      - wget
-    build-environment:
-      - NODEJS_RELEASE: "v18.12.1"
-    override-pull: |
-      ROOT=https://nodejs.org/dist/$NODEJS_RELEASE/node-$NODEJS_RELEASE-linux-
-      if [ $CRAFT_ARCH_BUILD_ON = "amd64" ]; then
-        SUFFIX=x64.tar.xz
-      elif [ $CRAFT_ARCH_BUILD_ON = "arm64" ]; then
-        SUFFIX=arm64.tar.xz
-      fi
-      wget -O - $ROOT$SUFFIX | tar -x --xz
-    override-build: |
-      craftctl default
-      cp -R node-$NODEJS_RELEASE-linux-*/ $CRAFT_PART_INSTALL/usr/
-    override-prime: ''
-
   mozconfig:
     plugin: nil
     # This should be 'pull' step so that firefox.pull step can add more
@@ -351,8 +220,6 @@ parts:
     plugin: nil
     after:
       - apikeys
-      - cbindgen
-      - clang
       - distribution
       - dump-syms
       - kerberos
@@ -360,10 +227,19 @@ parts:
       - firefox-langpacks
       - hunspell
       - mozconfig
-      - nodejs
-      - rust
-      - wasi-sdk
     build-packages:
+      - libc++-19-dev-wasm32
+      - libc++abi-19-dev
+      - libc++abi-19-dev-wasm32
+      - libclang-rt-19-dev
+      - libclang-rt-19-dev-wasm32
+      - rustc-1.91
+      - cargo-1.91
+      - clang-19
+      - llvm-19
+      - lld-19
+      - nodejs
+      - wasi-libc
       - on amd64:
         - to amd64:
           - libasound2-dev
@@ -414,7 +290,8 @@ parts:
       - xvfb
       - zip
     override-pull: |
-      rm -rf $CRAFT_PART_SRC/*
+      craftctl default
+
       REPO=https://hg.mozilla.org/mozilla-central
       ROOT=https://ftp.mozilla.org/pub/firefox/nightly/latest-mozilla-central
       REVISION=$(wget -O - $ROOT/firefox-$(craftctl get version).en-US.linux-x86_64.txt | tail -1 | sed -n "s#^$REPO/rev/\(.*\)\$#\1#p")
@@ -461,7 +338,37 @@ parts:
       fi
     override-build: |
       craftctl default
-      export PATH=$CRAFT_STAGE/usr/bin/:$PATH
+
+      unvBinDir=$CRAFT_PART_BUILD/unversioned-binaries
+      export PATH=$PATH:$unvBinDir
+      mkdir -p "$unvBinDir"
+      for o in /usr/bin/llvm-*-19 \
+               /usr/bin/lld-19 \
+               /usr/bin/lld-link-19 \
+               /usr/bin/ld.lld-19 \
+               /usr/bin/wasm-ld-19 \
+               /usr/bin/lld-19 \
+               /usr/bin/clang-19 \
+               /usr/bin/clang++-19 \
+      ; do
+        b=$(basename "$o")
+        ln -sf "$o" "$unvBinDir/${b%-19}"
+      done
+      rustv=1.91
+      ln -sf "/usr/bin/rustc-${rustv}" "$unvBinDir/rustc"
+      ln -sf "/usr/bin/rust-${rustv}-clang" "$unvBinDir/rust-clang"
+      ln -sf "/usr/bin/rust-${rustv}-lld" "$unvBinDir/rust-lld"
+      ln -sf "/usr/bin/rust-${rustv}-llvm-dwp" "$unvBinDir/rust-llvm-dwp"
+      ln -sf "/usr/bin/cargo-${rustv}" "$unvBinDir/cargo"
+      cargo install cbindgen
+
+      # Fixes configuration error that started after Libclang version 19:
+      # "Could not find libclang to generate rust bindings for C/C++."
+      export MOZCONFIG="$CRAFT_STAGE/mozconfig"
+      ln -sf /usr/lib/llvm-19/lib/libclang-19.so.1 \
+             /usr/lib/llvm-19/lib/libclang.so.1
+      echo "ac_add_options --with-libclang-path=/usr/lib/llvm-19/lib/" >> $MOZCONFIG
+
       GNOME_SDK_SNAP_BASE=gnome-46-2404-sdk
       GNOME_SDK_SNAP_REVISION=current
       GNOME_SDK_SNAP=/snap/$GNOME_SDK_SNAP_BASE/$GNOME_SDK_SNAP_REVISION
@@ -473,11 +380,9 @@ parts:
       elif [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
         export TARGET_TRIPLET="aarch64-unknown-linux-gnu"
       fi
-      export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib -Wl,-rpath-link=/usr/$CRAFT_ARCH_TRIPLET_BUILD_FOR/lib/"
+      export LDFLAGS="-Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR -Wl,-rpath-link=$GNOME_SDK_SNAP/usr/lib"
       export LDFLAGS="-Wl,-rpath-link=$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/dist/bin${LDFLAGS:+ $LDFLAGS}"
       export LD_LIBRARY_PATH="$CRAFT_PART_BUILD/obj-$TARGET_TRIPLET/dist/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-      export PKG_CONFIG_PATH=$GNOME_SDK_SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/pkgconfig/:$GNOME_SDK_SNAP/usr/lib/pkgconfig/:$GNOME_SDK_SNAP/usr/share/pkgconfig/:/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/pkgconfig/
-      export WASI_SYSROOT=$CRAFT_STAGE/wasi-sysroot
       export MOZBUILD_STATE_PATH=$CRAFT_PART_BUILD/.mozbuild
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       BUILD_DBGSYMS=false
