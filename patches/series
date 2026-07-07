@@ -1,2 +1,3 @@
 native-messaging-portal.patch
 pgo-with-software-webrender.patch
+no-exceptions.patch

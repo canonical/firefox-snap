@@ -1,0 +1,19 @@
+Description: Fix WASI libc++ link errors
+Author: Daniel Richard G. <skunk@iskunk.org>
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/2033572
+
+--- a/memory/mozalloc/mozalloc.cpp
++++ b/memory/mozalloc/mozalloc.cpp
+@@ -157,3 +157,12 @@ size_t moz_malloc_enclosing_size_of(cons
+   return 0;
+ #endif
+ }
++
++#if defined(__wasm32__)
++extern "C"
++{
++  void *__cxa_allocate_exception(size_t)    { abort(); }
++  void  __cxa_throw(void *, void *, void *) { abort(); }
++  void  __cxa_rethrow()                     { abort(); }
++}
++#endif
