@@ -229,17 +229,8 @@ parts:
       - mozconfig
     build-packages:
       - libc++-19-dev-wasm32
-      - libc++abi-19-dev
       - libc++abi-19-dev-wasm32
-      - libclang-rt-19-dev
       - libclang-rt-19-dev-wasm32
-      - rustc-1.91
-      - cargo-1.91
-      - clang-19
-      - llvm-19
-      - lld-19
-      - nodejs
-      - wasi-libc
       - sudo # For Mozilla's docker build
       - on amd64:
         - to amd64:
@@ -253,6 +244,15 @@ parts:
           - libx11-xcb-dev
           - libxkbcommon-dev
           - libxt-dev
+          - libclang-rt-19-dev
+          - libc++abi-19-dev
+          - rustc-1.91
+          - cargo-1.91
+          - clang-19
+          - llvm-19
+          - lld-19
+          - nodejs
+          - wasi-libc
         - to arm64:
           - libstdc++-11-dev-arm64-cross
           - libasound2-dev:arm64
@@ -265,6 +265,15 @@ parts:
           - libx11-xcb-dev:arm64
           - libxkbcommon-dev:arm64
           - libxt-dev:arm64
+          - libclang-rt-19-dev:arm64
+          - libc++abi-19-dev:arm64
+          - rustc-1.91:arm64
+          - cargo-1.91:arm64
+          - clang-19:arm64
+          - llvm-19:arm64
+          - lld-19:arm64
+          - nodejs:arm64
+          - wasi-libc:arm64
       - else:
         - libasound2-dev
         - libdbus-glib-1-dev
@@ -276,6 +285,15 @@ parts:
         - libx11-xcb-dev
         - libxkbcommon-dev
         - libxt-dev
+        - libclang-rt-19-dev
+        - libc++abi-19-dev
+        - rustc-1.91
+        - cargo-1.91
+        - clang-19
+        - llvm-19
+        - lld-19
+        - nodejs
+        - wasi-libc
       - cmake
       - coreutils
       - file
