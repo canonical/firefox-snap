@@ -236,6 +236,7 @@ parts:
       - nodejs
       - quilt
       - unzip
+      - sudo # For Mozilla's docker build
       - wget
       - xvfb
       - wasi-libc
@@ -282,8 +283,8 @@ parts:
       # Fixes configuration error that started after Libclang version 19:
       # "Could not find libclang to generate rust bindings for C/C++."
       export MOZCONFIG="$CRAFT_STAGE/mozconfig"
-      ln -sf /usr/lib/llvm-19/lib/libclang-19.so.1 \
-             /usr/lib/llvm-19/lib/libclang.so.1
+      sudo ln -sf /usr/lib/llvm-19/lib/libclang-19.so.1 \
+                  /usr/lib/llvm-19/lib/libclang.so.1
       echo "ac_add_options --with-libclang-path=/usr/lib/llvm-19/lib/" >> $MOZCONFIG
 
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
