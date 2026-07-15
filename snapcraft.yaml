@@ -162,7 +162,13 @@ parts:
   dump-syms:
     plugin: nil
     build-packages:
-      - cargo-1.91
+      - on amd64:
+        - to amd64:
+          - cargo-1.91
+        - to arm64:
+          - cargo-1.91:arm64
+      - else:
+        - cargo-1.91
       - curl
       - git
       - jq
