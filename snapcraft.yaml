@@ -537,7 +537,6 @@ parts:
   kerberos:
     plugin: nil
     build-packages:
-      - ubuntu-dev-tools
       - python3-lxml # Missing from Krb5 build-dependencies?
       - sudo # For Mozilla's docker build
     build-environment:
@@ -546,8 +545,8 @@ parts:
       - PKG_CONFIG_PATH: $CRAFT_STAGE/usr/share/pkgconfig
     override-pull: |
       # Fetch Kerberos from release matching current base snap
-      releasePocket=$(lsb_release -c | cut -f2)
-      pull-lp-source krb5 "$releasePocket"
+      sed -i '/Types:/s/deb/deb deb-src/' /etc/apt/sources.list.d/*.sources
+      apt source krb5
     override-build: |
       # Delete Gnome extension's injections in this variable
       export PATH=${PATH#/snap*:}
