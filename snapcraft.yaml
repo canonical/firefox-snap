@@ -545,7 +545,7 @@ parts:
       - PKG_CONFIG_PATH: $CRAFT_STAGE/usr/share/pkgconfig
     override-pull: |
       # Fetch Kerberos from release matching current base snap
-      sed -i '/Types:/s/deb/deb deb-src/' /etc/apt/sources.list.d/*.sources
+      sudo sed -i '/Types:/s/deb/deb deb-src/' /etc/apt/sources.list.d/*.sources
       apt source krb5
     override-build: |
       # Delete Gnome extension's injections in this variable
