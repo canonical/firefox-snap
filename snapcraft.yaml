@@ -13,7 +13,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 name: firefox
-version: "152.0.6-1"
+version: "153.0-1"
 summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
@@ -211,19 +211,19 @@ parts:
       - rustc-1.91
       - cargo-1.91
       - cmake
-      - clang-18
-      - lld-18
-      - llvm-18
+      - clang-19
+      - lld-19
+      - llvm-19
       - coreutils
       - file
       - git
       - g++
       - libasound2-dev
-      - libc++-18-dev-wasm32
-      - libc++abi-18-dev
-      - libc++abi-18-dev-wasm32
-      - libclang-rt-18-dev
-      - libclang-rt-18-dev-wasm32
+      - libc++-19-dev-wasm32
+      - libc++abi-19-dev
+      - libc++abi-19-dev-wasm32
+      - libclang-rt-19-dev
+      - libclang-rt-19-dev-wasm32
       - libdbus-glib-1-dev
       - libgtk2.0-dev
       - libpython3-dev
@@ -258,17 +258,17 @@ parts:
       unvBinDir=$CRAFT_PART_BUILD/unversioned-binaries
       export PATH=$PATH:$unvBinDir
       mkdir -p "$unvBinDir"
-      for o in /usr/bin/llvm-*-18 \
-               /usr/bin/lld-18 \
-               /usr/bin/lld-link-18 \
-               /usr/bin/ld.lld-18 \
-               /usr/bin/wasm-ld-18 \
-               /usr/bin/lld-18 \
-               /usr/bin/clang-18 \
-               /usr/bin/clang++-18 \
+      for o in /usr/bin/llvm-*-19 \
+               /usr/bin/lld-19 \
+               /usr/bin/lld-link-19 \
+               /usr/bin/ld.lld-19 \
+               /usr/bin/wasm-ld-19 \
+               /usr/bin/lld-19 \
+               /usr/bin/clang-19 \
+               /usr/bin/clang++-19 \
       ; do
         b=$(basename "$o")
-        ln -sf "$o" "$unvBinDir/${b%-18}"
+        ln -sf "$o" "$unvBinDir/${b%-19}"
       done
       rustv=1.91
       ln -sf "/usr/bin/rustc-${rustv}" "$unvBinDir/rustc"
@@ -277,6 +277,13 @@ parts:
       ln -sf "/usr/bin/rust-${rustv}-llvm-dwp" "$unvBinDir/rust-llvm-dwp"
       ln -sf "/usr/bin/cargo-${rustv}" "$unvBinDir/cargo"
       cargo install cbindgen
+
+      # Fixes configuration error that started after Libclang version 19:
+      # "Could not find libclang to generate rust bindings for C/C++."
+      export MOZCONFIG="$CRAFT_STAGE/mozconfig"
+      sudo ln -sf /usr/lib/llvm-19/lib/libclang-19.so.1 \
+                  /usr/lib/llvm-19/lib/libclang.so.1
+      echo "ac_add_options --with-libclang-path=/usr/lib/llvm-19/lib/" >> $MOZCONFIG
 
       QUILT_PATCHES=$CRAFT_PROJECT_DIR/patches quilt push -a
       BUILD_DBGSYMS=false
@@ -300,7 +307,6 @@ parts:
       if [ $CRAFT_ARCH_BUILD_FOR != "arm64" ]; then
         patch -p1 < $CRAFT_PROJECT_DIR/patches/thin-lto.patch
       fi
-      export MOZCONFIG="$CRAFT_STAGE/mozconfig"
       if [ $BUILD_DBGSYMS = "true" ]; then
         echo "ac_add_options --enable-debug-symbols" >> $MOZCONFIG
       else
