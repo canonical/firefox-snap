@@ -546,6 +546,7 @@ parts:
     override-pull: |
       # Fetch Kerberos from release matching current base snap
       sudo sed -i '/Types:/s/deb/deb deb-src/' /etc/apt/sources.list.d/*.sources
+      sudo apt update
       apt source krb5
     override-build: |
       # Delete Gnome extension's injections in this variable
