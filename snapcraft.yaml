@@ -244,6 +244,7 @@ parts:
           - libpython3-dev
           - libclang-rt-19-dev
           - libc++abi-19-dev
+          - libx11-dev
           - rustc-1.91
           - cargo-1.91
           - clang-19
@@ -257,6 +258,7 @@ parts:
           - libpython3-dev:arm64
           - libclang-rt-19-dev:arm64
           - libc++abi-19-dev:arm64
+          - libx11-dev:arm64
           - rustc-1.91:arm64
           - cargo-1.91:arm64
           - clang-19:arm64
@@ -269,6 +271,7 @@ parts:
         - libpython3-dev
         - libclang-rt-19-dev
         - libc++abi-19-dev
+        - libx11-dev
         - rustc-1.91
         - cargo-1.91
         - clang-19
