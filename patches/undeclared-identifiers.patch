@@ -3,7 +3,7 @@
 @@ -4,4 +4,5 @@
  #ifndef SPA_UTILS_JSON_H
  #define SPA_UTILS_JSON_H
-+include <cmath>
++#include <cmath>
  
  #include <stddef.h>
 @@ -451,7 +451,7 @@
