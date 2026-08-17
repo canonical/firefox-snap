@@ -1,5 +1,11 @@
 --- a/third_party/pipewire/spa/utils/json-core.h
 +++ b/third_party/pipewire/spa/utils/json-core.h
+@@ -4,4 +4,5 @@
+ #ifndef SPA_UTILS_JSON_H
+ #define SPA_UTILS_JSON_H
++#include <cmath>
+ 
+ #include <stddef.h>
 @@ -451,7 +451,7 @@
  SPA_API_JSON char *spa_json_format_float(char *str, int size, float val)
  {
