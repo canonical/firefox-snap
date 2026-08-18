@@ -415,7 +415,6 @@ parts:
       done
 
       MACH="/usr/bin/python3 ./mach"
-      $MACH newtab install
       $MACH repackage desktop-file --output $CRAFT_PART_INSTALL/firefox.desktop --flavor snap --release-product "firefox" --release-type nightly
       if grep -qF "MOZ_PGO=1" "$MOZCONFIG"; then
         # xvfb is only needed when doing a PGO-enabled build
