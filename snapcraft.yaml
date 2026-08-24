@@ -251,6 +251,7 @@ parts:
           - llvm-19
           - lld-19
           - nodejs
+          - npm
           - wasi-libc
         - to arm64:
           - libstdc++-11-dev-arm64-cross
@@ -265,6 +266,7 @@ parts:
           - llvm-19:arm64
           - lld-19:arm64
           - nodejs:arm64
+          - npm:arm64
           - wasi-libc:arm64
       - else:
         - libasound2-dev
@@ -278,6 +280,7 @@ parts:
         - llvm-19
         - lld-19
         - nodejs
+        - npm
         - wasi-libc
       - cmake
       - coreutils
