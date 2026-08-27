@@ -233,6 +233,7 @@ parts:
       - make
       - nasm
       - nodejs
+      - npm
       - quilt
       - unzip
       - wget
