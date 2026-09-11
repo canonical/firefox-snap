@@ -287,8 +287,6 @@ parts:
       - make
       - mercurial
       - nasm
-      # Drop when https://bugzilla.mozilla.org/show_bug.cgi?id=2065363 is fixed
-      - npm
       - quilt
       - sed
       - unzip
