@@ -1,0 +1,9 @@
+--- a/modules/libpref/init/StaticPrefList.yaml
++++ b/modules/libpref/init/StaticPrefList.yaml
+@@ -21207,5 +21207,5 @@
+ - name: widget.use-xdg-desktop-portal.native-messaging-proxy
+   type: int32_t
+-  value: 0
++  value: 2
+   mirror: always
+ 
