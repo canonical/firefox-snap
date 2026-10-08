@@ -54,6 +54,7 @@ apps:
       # See below and also the 'snap/hooks/post-refresh' file for
       # more details about our hunspell setup.
       DICPATH: "$SNAP_COMMON/snap-hunspell"
+      ALSA_CONFIG_PATH: "$SNAP/gnome-platform/usr/share/alsa"
       GTK_USE_PORTAL: 1
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: client.conf
