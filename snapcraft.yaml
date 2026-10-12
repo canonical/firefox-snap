@@ -55,6 +55,7 @@ apps:
       # more details about our hunspell setup.
       DICPATH: "$SNAP_COMMON/snap-hunspell"
       GTK_USE_PORTAL: 1
+      ALSA_CONFIG_PATH: "$SNAP/gnome-platform/usr/share/alsa/alsa.conf"
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: client.conf
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
