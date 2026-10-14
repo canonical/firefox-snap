@@ -34,6 +34,7 @@ apps:
       # more details about our hunspell setup.
       DICPATH: "$SNAP_COMMON/snap-hunspell"
       GTK_USE_PORTAL: 1
+      ALSA_CONFIG_PATH: "$SNAP/gnome-platform/usr/share/alsa/alsa.conf"
       HOME: "$SNAP_USER_COMMON"
       PIPEWIRE_CONFIG_NAME: client.conf
       SPEECHD_ADDRESS: "unix_socket:/run/user/$SNAP_UID/speech-dispatcher/speechd.sock"
@@ -127,6 +128,8 @@ plugs:
 layout:
   /usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so:
     bind-file: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so
+  /usr/share/alsa:
+    bind: $SNAP/usr/share/alsa
 
 parts:
   rust:
