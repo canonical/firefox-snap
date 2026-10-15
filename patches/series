@@ -3,4 +3,5 @@ native-messaging-portal.patch
 no-exceptions.patch
 riscv:webrtc.patch
 riscv:disable-jit.patch
+riscv:wasm2c.patch
 undeclared-identifiers.patch
