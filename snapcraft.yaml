@@ -48,6 +48,7 @@ assumes:
 apps:
   firefox:
     command: firefox.launcher
+    common-id: org.mozilla.firefox
     desktop: firefox.desktop
     extensions: [gnome]
     environment:
