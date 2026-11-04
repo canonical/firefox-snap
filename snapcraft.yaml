@@ -18,7 +18,7 @@ summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
 grade: stable
-base: core24
+base: core26
 compression: lzo
 source-code: https://github.com/canonical/firefox-snap
 assumes:
@@ -321,7 +321,7 @@ parts:
       fi
       echo "ac_add_options --enable-rust-simd" >> $MOZCONFIG
       echo "ac_add_options --prefix=$CRAFT_PART_INSTALL/usr" >> $MOZCONFIG
-      GNOME_SDK_SNAP=/snap/gnome-46-2404-sdk/current
+      GNOME_SDK_SNAP=/snap/gnome-core26-sdk/current
       if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
         # "clang -dumpmachine" returns "x86_64-unknown-linux-gnu" on
         # amd64 (at least the binaries they distribute), but what we
@@ -373,7 +373,7 @@ parts:
       # Workaround for LP: #2016358: create mount points for the gnome
       # content interface, while a proper fix is implemented in snapd.
       # Thanks to James Henstridge.
-      mkdir $CRAFT_PART_INSTALL/{gpu-2404,data-dir,data-dir/{icons,sounds,themes}}
+      mkdir $CRAFT_PART_INSTALL/{gpu-2604,data-dir,data-dir/{icons,sounds,themes}}
       craftctl default
     stage-packages:
       - libpci3
@@ -404,7 +404,7 @@ parts:
       - usr/lib/*/libssl.so.*
       - usr/lib/*/libwind.so.*
       # Workaround for LP: #2016358 (see the 'override-stage' above).
-      - gpu-2404
+      - gpu-2604
       - data-dir/icons
       - data-dir/sounds
       - data-dir/themes
@@ -487,12 +487,14 @@ parts:
     plugin: nil
     # Not using the ffmpeg snap (which might provide a more recent version)
     # because it is currently built on core18
+    # 26.04 archive sonames: libavcodec62, libsvtav1enc2, libjxl0.11,
+    # librav1e0.8 (libhwy1t64, libvpl2 unchanged)
     stage-packages:
-      - libavcodec60
+      - libavcodec62
       - libhwy1t64
-      - libsvtav1enc1d1
-      - libjxl0.7
-      - librav1e0
+      - libsvtav1enc2
+      - libjxl0.11
+      - librav1e0.8
       # the package is intel specific
       - on amd64:
         - libvpl2
