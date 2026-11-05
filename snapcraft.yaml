@@ -369,12 +369,6 @@ parts:
       if [ $BUILD_DBGSYMS = "true" ]; then
         cp obj-*/dist/firefox-*.crashreporter-symbols.zip $CRAFT_STAGE/debug-symbols/
       fi
-    override-stage: |
-      # Workaround for LP: #2016358: create mount points for the gnome
-      # content interface, while a proper fix is implemented in snapd.
-      # Thanks to James Henstridge.
-      mkdir $CRAFT_PART_INSTALL/{gpu-2404,data-dir,data-dir/{icons,sounds,themes}}
-      craftctl default
     stage-packages:
       - libpci3
       - libspeechd2
@@ -403,11 +397,6 @@ parts:
       - usr/lib/*/libssh.so.*
       - usr/lib/*/libssl.so.*
       - usr/lib/*/libwind.so.*
-      # Workaround for LP: #2016358 (see the 'override-stage' above).
-      - gpu-2404
-      - data-dir/icons
-      - data-dir/sounds
-      - data-dir/themes
 
   firefox-langpacks:
     plugin: nil
