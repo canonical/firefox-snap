@@ -143,7 +143,7 @@ parts:
   dump-syms:
     plugin: nil
     build-packages:
-      - cargo-1.91
+      - cargo-1.97
       - curl
       - git
       - jq
@@ -165,7 +165,7 @@ parts:
     override-build: |
       craftctl default
       if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ] || [ $CRAFT_ARCH_BUILD_FOR = "arm64" ]; then
-        cargo-1.91 build --release
+        cargo-1.97 build --release
         mkdir -p $CRAFT_STAGE/usr/bin/
         cp target/release/dump_syms $CRAFT_STAGE/usr/bin/
       fi
@@ -213,8 +213,8 @@ parts:
       - hunspell
       - mozconfig
     build-packages:
-      - rustc-1.91
-      - cargo-1.91
+      - rustc-1.97
+      - cargo-1.97
       - cmake
       - clang-19
       - lld-19
@@ -276,7 +276,7 @@ parts:
         b=$(basename "$o")
         ln -sf "$o" "$unvBinDir/${b%-19}"
       done
-      rustv=1.91
+      rustv=1.97
       ln -sf "/usr/bin/rustc-${rustv}" "$unvBinDir/rustc"
       ln -sf "/usr/bin/rust-${rustv}-clang" "$unvBinDir/rust-clang"
       ln -sf "/usr/bin/rust-${rustv}-lld" "$unvBinDir/rust-lld"
