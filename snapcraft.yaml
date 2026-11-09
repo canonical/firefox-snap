@@ -168,11 +168,11 @@ parts:
     build-packages:
       - on amd64:
         - to amd64:
-          - cargo-1.91
+          - cargo-1.97
         - to arm64:
-          - cargo-1.91:arm64
+          - cargo-1.97:arm64
       - else:
-        - cargo-1.91
+        - cargo-1.97
       - curl
       - git
       - jq
@@ -188,7 +188,7 @@ parts:
       git clone "${REPO}" . && git checkout "${SHA1}"
     override-build: |
       craftctl default
-      cargo-1.91 build --release
+      cargo-1.97 build --release
       mkdir -p $CRAFT_STAGE/usr/bin/
       cp target/release/dump_syms $CRAFT_STAGE/usr/bin/
 
@@ -249,8 +249,8 @@ parts:
           - libclang-rt-19-dev
           - libc++abi-19-dev
           - libx11-dev
-          - rustc-1.91
-          - cargo-1.91
+          - rustc-1.97
+          - cargo-1.97
           - clang-19
           - llvm-19
           - lld-19
@@ -263,8 +263,8 @@ parts:
           - libclang-rt-19-dev:arm64
           - libc++abi-19-dev:arm64
           - libx11-dev:arm64
-          - rustc-1.91:arm64
-          - cargo-1.91:arm64
+          - rustc-1.97:arm64
+          - cargo-1.97:arm64
           - clang-19:arm64
           - llvm-19:arm64
           - lld-19:arm64
@@ -276,8 +276,8 @@ parts:
         - libclang-rt-19-dev
         - libc++abi-19-dev
         - libx11-dev
-        - rustc-1.91
-        - cargo-1.91
+        - rustc-1.97
+        - cargo-1.97
         - clang-19
         - llvm-19
         - lld-19
@@ -351,7 +351,7 @@ parts:
         b=$(basename "$o")
         ln -sf "$o" "$unvBinDir/${b%-19}"
       done
-      rustv=1.91
+      rustv=1.97
       ln -sf "/usr/bin/rustc-${rustv}" "$unvBinDir/rustc"
       ln -sf "/usr/bin/rust-${rustv}-clang" "$unvBinDir/rust-clang"
       ln -sf "/usr/bin/rust-${rustv}-lld" "$unvBinDir/rust-lld"
