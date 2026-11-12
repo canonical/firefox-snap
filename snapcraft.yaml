@@ -138,7 +138,7 @@ plugs:
   dot-mozilla-firefox:
     interface: personal-files
     read: [$HOME/.mozilla/firefox]
-  local-share-applications:
+  dot-local-share-applications:
     interface: personal-files
     write: [$HOME/.local/share/applications]
   etc-firefox:
