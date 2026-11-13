@@ -18,7 +18,7 @@ summary: Mozilla Firefox web browser
 description:  Firefox is a powerful, extensible web browser with support for modern web application technologies.
 confinement: strict
 grade: stable
-base: core24
+base: core26
 compression: lzo
 
 # This requires snapcraft version including
@@ -366,7 +366,7 @@ parts:
              /usr/lib/llvm-19/lib/libclang.so.1
       echo "ac_add_options --with-libclang-path=/usr/lib/llvm-19/lib/" >> $MOZCONFIG
 
-      GNOME_SDK_SNAP_BASE=gnome-46-2404-sdk
+      GNOME_SDK_SNAP_BASE=gnome-core26-sdk
       GNOME_SDK_SNAP_REVISION=current
       GNOME_SDK_SNAP=/snap/$GNOME_SDK_SNAP_BASE/$GNOME_SDK_SNAP_REVISION
       if [ $CRAFT_ARCH_BUILD_FOR = "amd64" ]; then
@@ -555,24 +555,24 @@ parts:
     stage-packages:
       - on amd64:
         - to amd64:
-          - libavcodec60
+          - libavcodec62
           - libhwy1t64
-          - libsvtav1enc1d1
-          - libjxl0.7
-          - librav1e0
+          - libsvtav1enc2
+          - libjxl0.11
+          - librav1e0.8
           - libvpl2 # the package is intel specific
         - to arm64:
-          - libavcodec60:arm64
+          - libavcodec62:arm64
           - libhwy1t64:arm64
-          - libsvtav1enc1d1:arm64
-          - libjxl0.7:arm64
-          - librav1e0:arm64
+          - libsvtav1enc2:arm64
+          - libjxl0.11:arm64
+          - librav1e0.8:arm64
       - else:
-        - libavcodec60
+        - libavcodec62
         - libhwy1t64
-        - libsvtav1enc1d1
-        - libjxl0.7
-        - librav1e0
+        - libsvtav1enc2
+        - libjxl0.11
+        - librav1e0.8
     prime:
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libaom.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libavcodec.so.*
