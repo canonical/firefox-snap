@@ -438,20 +438,24 @@ parts:
           - libpci3
           - libspeechd2
           - opensc-pkcs11
+          - libpcsclite1
         - to arm64:
           - libpci3:arm64
           - libspeechd2:arm64
           - opensc-pkcs11:arm64
+          - libpcsclite1:arm64
       - else:
         - libpci3
         - libspeechd2
         - opensc-pkcs11
+        - libpcsclite1
     prime:
       - default256.png
       - firefox.desktop
       - usr/lib/firefox
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/opensc-pkcs11.so
-      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/pkcs11/opensc-pkcs11.so
+      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/pkcs11/opensc-pkcs11.so*
+      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libpcsclite*.so.1
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libasn1.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libhcrypto.so.*
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libheimbase.so.*
