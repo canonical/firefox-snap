@@ -72,3 +72,6 @@ jobs:
           snap run firefox --headless --marionette &
           pid=$!
           ./.github/scripts/firefox-basic-tests.py $pid "$runtimeversion"
+      - name: Test langpack installation
+        run: |
+          python3 ./.github/scripts/test-langpack-installation.py /snap/firefox/current
